@@ -54,20 +54,19 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_FMC_Init(void);
 /* USER CODE BEGIN PFP */
-
+static void frequencyTableInit(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-float l_a0, l_a2, l_b1, l_b2, lin_z1, lin_z2, lout_z1, lout_z2;
-float r_a0, r_a2, r_b1, r_b2, rin_z1, rin_z2, rout_z2, rout_z2;
-
 uint8_t lsample, rsample;
 uint8_t rxBuf[8];
 uint8_t txBuf[8];
 
-arm_rfft_instance_q15        leftRFFTInstance, rightRFFTInstance;
-arm_cfft_radix4_instance_q15 leftCFFTInstance, rightCFFTInstance;
+ARM_RFFT_INSTANCE        leftRFFTInstance, rightRFFTInstance;
+ARM_CFFT_RADIX4_INSTANCE leftCFFTInstance, rightCFFTInstance;
+
+static uint16_t frequencyTable[AUDIO_BUFFER_SIZE>>1];
 /* USER CODE END 0 */
 
 /**
@@ -101,9 +100,10 @@ int main(void)
   MX_GPIO_Init();
   MX_FMC_Init();
   /* USER CODE BEGIN 2 */
+  frequencyTableInit();
 
-  arm_rfft_init_q15(&leftRFFTInstance, &leftCFFTInstance, AUDIO_BUFFER_SIZE, 0, 1);
-  arm_rfft_init_q15(&rightRFFTInstance, &rightCFFTInstance, AUDIO_BUFFER_SIZE, 0, 1);
+  ARM_RFFT_INIT(&leftRFFTInstance, &leftCFFTInstance, AUDIO_BUFFER_SIZE);
+  ARM_RFFT_INIT(&rightRFFTInstance, &rightCFFTInstance, AUDIO_BUFFER_SIZE);
 
   HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_RESET);
   HAL_Delay(10);
@@ -114,13 +114,6 @@ int main(void)
 
   ILI9341_Fill(COLOR_BLUE);
 
-  //ILI9341_drawCircle(50,50,40,COLOR_GREEN);
-  //ILI9341_fillCircle(110, 190, 80, COLOR_RED);
-
-  //ILI9341_printText("Hello", 60, 90, COLOR_YELLOW, COLOR_YELLOW, 5);
-
-  //ILI9341_fillTriangle(10, 160, 110, 160, 190, 300, COLOR_BLACK);
-  int x = 0;
   ILI9341_drawFastVLine(x, 0, ILI9341_HEIGHT/2, COLOR_RED);
   /* USER CODE END 2 */
 
@@ -278,6 +271,11 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+static void frequencyTableInit(void) {
+  for (int i = 1; i < AUDIO_BUFFER_SIZE; i++) {
+    frequencyTable[i] = (uint16_t)(i * (AUDIO_SAMPLE_FREQ / AUDIO_BUFFER_SIZE));
+  }
+}
 /*void HAL_SAI_RxHalfCpltCallback(SAI_HandleTypeDef *hsai) {
 
 	txBuf[0] = rxBuf[0];

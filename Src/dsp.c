@@ -1,5 +1,7 @@
 #include "dsp.h"
 
+// TODO: some of the labeled "buffer" variables aren't really buffers, might change names
+
 /* returns the magnitudes of the real FFT on the passed buffer
  *
  * NOTE: valid values for size include: 32, 64, 128, 256... 8192
@@ -10,13 +12,12 @@
  */
 
 // TODO: int and q15 conversion
-uint16_t * fft(arm_rfft_instance_q15 * instance, uint16_t * buffer, int size) {
-	q15_t * bufferCopy, bufferOutUnscaled, bufferOut;
+UINT * fft(ARM_RFFT_INSTANCE * instance, UINT * arrIn, UINT * arrOut, int size) {
+	Q * arrInCopy, arrOutUnscaled;
 	int8_t bitsToShift;
 	// arm_rfft_q15() overwrites passed src buffer, so we use a copy
-	arm_copy_q15((q15_t *)buffer, bufferCopy, size);
-	arm_rfft_q15(instance, bufferCopy, bufferOutUnscaled);
-	// TODO:
+	ARM_COPY((Q *)arrIn, arrInCopy, size);
+	ARM_RFFT(instance, arrInCopy, arrOutUnscaled);
 	switch(size) {
 		case 32: {
 			bitsToShift = 4;
@@ -34,19 +35,43 @@ uint16_t * fft(arm_rfft_instance_q15 * instance, uint16_t * buffer, int size) {
 			bitsToShift = 7;
 			break;
 		}
-		default: bitsToShift = 12;
+		case 512: {
+			bitsToShift = 8;
+			break;
+		}
+		case 1024: {
+			bitsToShift = 9;
+			break;
+		}
+		case 2048: {
+			bitsToShift = 10;
+			break;
+		}
+		case 4096: {
+			bitsToShift = 11;
+			break;
+		}
+		case 8192: {
+			bitsToShift = 12;
+			break;
+		}
+		default: bitsToShift = 0;
 	}
-	arm_shift_q15(bufferOutUnscaled, bitsToShift, bufferOut, size);
-	return (uint16_t *)bufferOut;
+	ARM_SHIFT(arrOutUnscaled, bitsToShift, (Q*)arrOut, size);
+	return (UINT *)arrOut;
 }
 
-uint32_t * fft(arm_rfft_instance_q31 * instance, uint32_t * buffer, int size) {
-	q31_t * bufferCopy, bufferOutUnscaled, bufferOut;
-	int8_t bitsToShift;
-	// arm_rfft_q31() overwrites passed src buffer, so we use a copy
-	arm_copy_q31((q31_t*)buffer, bufferCopy, size);
-	arm_rfft_q31(instance, bufferCopy, bufferOutUnscaled);
-	/*...*/
-	arm_shift_q31(bufferOutUnscaled, bitsToShift, bufferOut, size);
-	return (uint32_t*)bufferOut;
+uint16_t getDominantSignalFrequency(ARM_RFFT_INSTANCE * instance, UINT * arr, uint16_t * frequencyTable, int size) {
+	uint16_t max, maxIdx;
+	UINT * signalFrequencyMagnitudes;
+	signalFrequencyMagnitudes = fft(instance, arr, signalFrequencyMagnitudes, size);
+	max = signalFrequencyMagnitudes[0];
+	// FFT symmetric about its center, only need to scan first half of buffer
+	for (int i = 1; i < size>>1; i++) {
+		if (signalFrequencyMagnitudes[i] > max) {
+			max = signalFrequencyMagnitudes[i];
+			maxIdx = i;
+		}
+	}
+	return frequencyTable[maxIdx];
 }

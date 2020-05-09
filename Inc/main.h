@@ -61,12 +61,7 @@ void Error_Handler(void);
 #define FMC_RST_Pin GPIO_PIN_2
 #define FMC_RST_GPIO_Port GPIOD
 /* USER CODE BEGIN Private defines */
-#define FMC_RS_Pin GPIO_PIN_13
-#define FMC_RS_GPIO_Port GPIOD
-#define FMC_CS_Pin GPIO_PIN_7
-#define FMC_CS_GPIO_Port GPIOC
-#define FMC_NWE_Pin GPIO_PIN_5
-#define FMC_NWE_GPIO_Port GPIOD
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

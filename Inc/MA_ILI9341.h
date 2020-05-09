@@ -38,13 +38,15 @@ PD5   ------> FMC_NWE
 #define FMC_NWE_Pin GPIO_PIN_5
 #define FMC_NWE_GPIO_Port GPIOD
 
-//some custom commands
+/* some custom commands */
+// these are non-parallel writes to GPIO, be warned about delays
 #define CS_ACTIVE  HAL_GPIO_WritePin(FMC_CS_GPIO_Port, FMC_CS_Pin, 1);
 #define CD_COMMAND HAL_GPIO_WritePin(FMC_RS_GPIO_Port, FMC_RS_Pin, 0);
 #define CD_DATA    HAL_GPIO_WritePin(FMC_RS_GPIO_Port, FMC_RS_Pin, 1);
 #define WR_ACTIVE  HAL_GPIO_WritePin(FMC_NWE_GPIO_Port, FMC_NWE_Pin, 0);
 #define WR_IDLE    HAL_GPIO_WritePin(FMC_NWE_GPIO_Port, FMC_NWE_Pin, 1);
 #define WR_STROBE  { WR_ACTIVE; WR_IDLE; }
+/* end of custom commands */
 
 //LCD dimensions defines
 #define ILI9341_WIDTH       240

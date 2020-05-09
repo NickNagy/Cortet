@@ -65,6 +65,9 @@ float r_a0, r_a2, r_b1, r_b2, rin_z1, rin_z2, rout_z2, rout_z2;
 uint8_t lsample, rsample;
 uint8_t rxBuf[8];
 uint8_t txBuf[8];
+
+arm_rfft_instance_q15        leftRFFTInstance, rightRFFTInstance;
+arm_cfft_radix4_instance_q15 leftCFFTInstance, rightCFFTInstance;
 /* USER CODE END 0 */
 
 /**
@@ -99,17 +102,26 @@ int main(void)
   MX_FMC_Init();
   /* USER CODE BEGIN 2 */
 
+  arm_rfft_init_q15(&leftRFFTInstance, &leftCFFTInstance, AUDIO_BUFFER_SIZE, 0, 1);
+  arm_rfft_init_q15(&rightRFFTInstance, &rightCFFTInstance, AUDIO_BUFFER_SIZE, 0, 1);
+
   HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_RESET);
   HAL_Delay(10);
   HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_SET);
 
   ILI9341_Init();
-  ILI9341_setRotation(1);
+  ILI9341_setRotation(4);
 
   ILI9341_Fill(COLOR_BLUE);
 
-  int x = 0;
+  //ILI9341_drawCircle(50,50,40,COLOR_GREEN);
+  //ILI9341_fillCircle(110, 190, 80, COLOR_RED);
 
+  //ILI9341_printText("Hello", 60, 90, COLOR_YELLOW, COLOR_YELLOW, 5);
+
+  //ILI9341_fillTriangle(10, 160, 110, 160, 190, 300, COLOR_BLACK);
+  int x = 0;
+  ILI9341_drawFastVLine(x, 0, ILI9341_HEIGHT/2, COLOR_RED);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -117,10 +129,12 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	/*ILI9341_drawFastVLine(x, 0, ILI9341_HEIGHT/2, COLOR_RED);
-	HAL_Delay(1000);
-	x++;
-	if (x == ILI9341_WIDTH) {
+	ILI9341_drawFastVLine(x, 0, ILI9341_HEIGHT/2, COLOR_RED);
+	HAL_Delay(5);
+	ILI9341_drawFastVLine(x, 0, ILI9341_HEIGHT/2, COLOR_BLUE);
+
+	x = (x + 1) % ILI9341_WIDTH;
+	/*if (x == ILI9341_WIDTH) {
 		x = 0;
 		HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_RESET);
 		HAL_Delay(10);

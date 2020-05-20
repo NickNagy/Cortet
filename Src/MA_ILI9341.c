@@ -19,21 +19,17 @@ static bool _cp437    = false;
 //1. Write Command to LCD
 void ILI9341_SendCommand(uint8_t com)
 {
-	CD_COMMAND;
-	*(__IO uint8_t *)(0x60000000) = com;
-	//GPIOD->ODR &= ~(FMC_RS_Pin | FMC_NWE_Pin); // set reg select low (command) and not-write low
-	//GPIOD->ODR |= FMC_NWE_Pin; // set not-write high
-	WR_STROBE;
+	//CD_COMMAND;
+	*(__IO uint8_t *)(0xC0000000) = com;
+	//WR_STROBE;
 }
 
 //2. Write data to LCD
 void ILI9341_SendData(uint8_t data)
 {
-	CD_DATA;
-	*(__IO uint8_t *)(0x60040000) = data;
-	//GPIOD->ODR |= (FMC_RS_Pin & ~FMC_NWE_Pin); // set reg select high (data) and not-write low
-	//GPIOD->ODR |= FMC_NWE_Pin; // set not-write high
-	WR_STROBE;
+	//CD_DATA;
+	*(__IO uint8_t *)(0xC0040000) = data;
+	//WR_STROBE;
 }
 
 // TODO: verify &0xFF

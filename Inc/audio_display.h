@@ -6,9 +6,11 @@
 #include <stdlib.h>
 
 #define BACKGROUND_COLOR COLOR_BLUE
+#define WIDTH  ILI9341_WIDTH
+#define HEIGHT ILI9341_HEIGHT
 
 // TODO
-void displayWaveForm();
+void displayWaveForm(float wave[], uint8_t size, uint8_t amplitude);
 void displayFFT();
 void printText();
 void printValue();

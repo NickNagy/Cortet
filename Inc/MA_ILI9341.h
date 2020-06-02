@@ -415,6 +415,9 @@ void ILI9341_fillCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color);
 void ILI9341_drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
 void ILI9341_drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color);
 void ILI9341_drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color);
+
+void ILI9341_drawRect(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
+
 //10. Triangle drawing
 void ILI9341_drawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color);
 void ILI9341_fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color);

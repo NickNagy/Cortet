@@ -317,6 +317,14 @@ void ILI9341_drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
 {
 	ILI9341_drawLine(x, y, x, y+h-1, color);
 }
+
+void ILI9341_drawRect(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) {
+	ILI9341_drawFastHLine(x0, y0, x1-x0, color);
+	ILI9341_drawFastVLine(x0, y0, y1-y0, color);
+	ILI9341_drawFastHLine(x0, y1, x1-x0, color);
+	ILI9341_drawFastVLine(x1, y0, y1-y0, color);
+}
+
 //10. Triangle drawing
 void ILI9341_drawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color)
 {

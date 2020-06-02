@@ -20,7 +20,6 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "MA_ILI9341.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -43,6 +42,11 @@
 
 /* Private variables ---------------------------------------------------------*/
 
+I2S_HandleTypeDef hi2s2;
+I2S_HandleTypeDef hi2s3;
+DMA_HandleTypeDef hdma_spi2_rx;
+DMA_HandleTypeDef hdma_spi3_tx;
+
 SRAM_HandleTypeDef hsram1;
 
 /* USER CODE BEGIN PV */
@@ -52,9 +56,11 @@ SRAM_HandleTypeDef hsram1;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_FMC_Init(void);
+static void MX_I2S2_Init(void);
+static void MX_I2S3_Init(void);
 /* USER CODE BEGIN PFP */
-static void frequencyTableInit(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -65,8 +71,6 @@ uint8_t txBuf[8];
 
 ARM_RFFT_INSTANCE        leftRFFTInstance, rightRFFTInstance;
 ARM_CFFT_RADIX4_INSTANCE leftCFFTInstance, rightCFFTInstance;
-
-static uint16_t frequencyTable[AUDIO_BUFFER_SIZE>>1];
 
 // arbitrary sine wave
 float sineWave[] = {0,  0.03920564,  0.07835099,  0.11737586,  0.15622024,
@@ -152,55 +156,32 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_FMC_Init();
   /* USER CODE BEGIN 2 */
-
-  //ARM_RFFT_INIT(&leftRFFTInstance, AUDIO_BUFFER_SIZE);
-  //ARM_RFFT_INIT(&rightRFFTInstance, AUDIO_BUFFER_SIZE);
+  MX_I2S3_Init();
+  MX_I2S2_Init();
 
   HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_RESET);
   HAL_Delay(10);
   HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_SET);
 
   ILI9341_Init();
-  ILI9341_setRotation(3);
-
+  ILI9341_setRotation(2);
   ILI9341_Fill(COLOR_BLUE);
 
-  //Draw and fill circle
-  ILI9341_drawCircle(50,50, 40, COLOR_GREEN);
-  ILI9341_fillCircle(110,190, 80, COLOR_RED);
-  //Print text
-  ILI9341_printText("HELLO", 60, 90, COLOR_YELLOW, COLOR_YELLOW, 5);
-  //Print-Fill triangle
-  ILI9341_fillTriangle(10, 160, 110, 160, 190, 300, COLOR_BLACK);
+  result = HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)&txBuf, 4);
+  result = HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)&rxBuf, 4);
+
   /* USER CODE END 2 */
+ 
+ 
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
-	//ILI9341_drawFastVLine(x, 0, ILI9341_HEIGHT/2, COLOR_RED);
-	//HAL_Delay(5);
-	//ILI9341_drawFastVLine(x, 0, ILI9341_HEIGHT/2, COLOR_BLUE);
-	//ILI9341_SendCommand(0);
-	ILI9341_SendData(1);
-	//ILI9341_SendCommand(1);
-	ILI9341_SendData(2);
-	//ILI9341_SendCommand(0);
-	ILI9341_SendData(1);
-	//ILI9341_SendData(0);
-	//ILI9341_SendCommand(1);
-	//ILI9341_SendData(1);
-	HAL_Delay(1);
-	//x = (x + 1) % ILI9341_WIDTH;
-	/*if (x == ILI9341_WIDTH) {
-		x = 0;
-		HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_RESET);
-		HAL_Delay(10);
-		HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_SET);
-	}*/
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -214,6 +195,7 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInitStruct = {0};
 
   /** Configure the main internal regulator output voltage 
   */
@@ -225,9 +207,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 6;
-  RCC_OscInitStruct.PLL.PLLN = 144;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV8;
+  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLN = 168;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -239,13 +221,109 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
   {
     Error_Handler();
   }
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_I2S;
+  PeriphClkInitStruct.PLLI2S.PLLI2SN = 96;
+  PeriphClkInitStruct.PLLI2S.PLLI2SP = RCC_PLLP_DIV2;
+  PeriphClkInitStruct.PLLI2S.PLLI2SR = 2;
+  PeriphClkInitStruct.PLLI2S.PLLI2SQ = 2;
+  PeriphClkInitStruct.PLLI2SDivQ = 1;
+  PeriphClkInitStruct.I2sClockSelection = RCC_I2SCLKSOURCE_PLLI2S;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief I2S2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2S2_Init(void)
+{
+
+  /* USER CODE BEGIN I2S2_Init 0 */
+
+  /* USER CODE END I2S2_Init 0 */
+
+  /* USER CODE BEGIN I2S2_Init 1 */
+
+  /* USER CODE END I2S2_Init 1 */
+  hi2s2.Instance = SPI2;
+  hi2s2.Init.Mode = I2S_MODE_MASTER_RX;
+  hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
+  hi2s2.Init.DataFormat = I2S_DATAFORMAT_24B;
+  hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
+  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_44K;
+  hi2s2.Init.CPOL = I2S_CPOL_LOW;
+  hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
+  if (HAL_I2S_Init(&hi2s2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2S2_Init 2 */
+
+  /* USER CODE END I2S2_Init 2 */
+
+}
+
+/**
+  * @brief I2S3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2S3_Init(void)
+{
+
+  /* USER CODE BEGIN I2S3_Init 0 */
+
+  /* USER CODE END I2S3_Init 0 */
+
+  /* USER CODE BEGIN I2S3_Init 1 */
+
+  /* USER CODE END I2S3_Init 1 */
+  hi2s3.Instance = SPI3;
+  hi2s3.Init.Mode = I2S_MODE_SLAVE_TX;
+  hi2s3.Init.Standard = I2S_STANDARD_PHILIPS;
+  hi2s3.Init.DataFormat = I2S_DATAFORMAT_24B;
+  hi2s3.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
+  hi2s3.Init.AudioFreq = I2S_AUDIOFREQ_44K;
+  hi2s3.Init.CPOL = I2S_CPOL_LOW;
+  hi2s3.Init.ClockSource = I2S_CLOCK_PLL;
+  if (HAL_I2S_Init(&hi2s3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2S3_Init 2 */
+
+  /* USER CODE END I2S3_Init 2 */
+
+}
+
+/** 
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void) 
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
+  /* DMA1_Stream5_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
+
 }
 
 /* FMC initialization function */
@@ -283,12 +361,12 @@ static void MX_FMC_Init(void)
   hsram1.Init.WriteFifo = FMC_WRITE_FIFO_DISABLE;
   hsram1.Init.PageSize = FMC_PAGE_SIZE_NONE;
   /* Timing */
-  Timing.AddressSetupTime = 6; //
-  Timing.AddressHoldTime = 1; // range 1 -> 15
-  Timing.DataSetupTime = 6; // range 4 -> 255
-  Timing.BusTurnAroundDuration = 0; // doesn't matter
-  Timing.CLKDivision = 0; // doesn't matter
-  Timing.DataLatency = 0; // keep 0
+  Timing.AddressSetupTime = 6;
+  Timing.AddressHoldTime = 0;
+  Timing.DataSetupTime = 6;
+  Timing.BusTurnAroundDuration = 0;
+  Timing.CLKDivision = 16;
+  Timing.DataLatency = 17;
   Timing.AccessMode = FMC_ACCESS_MODE_A;
   /* ExtTiming */
 
@@ -313,21 +391,14 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
-  __HAL_RCC_GPIOE_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : PB15 */
-  GPIO_InitStruct.Pin = GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : FMC_RST_Pin */
   GPIO_InitStruct.Pin = FMC_RST_Pin;
@@ -336,14 +407,11 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(FMC_RST_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : MCO2 pin */
-  HAL_RCC_MCOConfig(RCC_MCO2, RCC_MCO2SOURCE_SYSCLK, RCC_MCODIV_1);
 }
 
 /* USER CODE BEGIN 4 */
 
-/*void HAL_SAI_RxHalfCpltCallback(SAI_HandleTypeDef *hsai) {
-
+void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
 	txBuf[0] = rxBuf[0];
 	txBuf[1] = rxBuf[1];
 	txBuf[2] = rxBuf[2];
@@ -352,15 +420,9 @@ static void MX_GPIO_Init(void)
 
 void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
 	// TODO: IIR
-
-	//txBuf[0] = 0xFFFF;
-	//txBuf[1] = 0xFFFF;
-	//txBuf[2] = 0xFFFF;
-	//txBuf[3] = 0xFFFF;
 }
 
-void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai) {
-
+void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s) {
 	txBuf[4] = rxBuf[4];
 	txBuf[5] = rxBuf[5];
 	txBuf[6] = rxBuf[6];
@@ -368,13 +430,8 @@ void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai) {
 }
 
 void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s) {
-	// TODO: IIR
-
-	//txBuf[4] = 0x0000;
-	//txBuf[5] = 0x0000;
-	//txBuf[6] = 0x0000;
-	//txBuf[7] = 0x0000;
-}*/
+	// TODO:
+}
 /* USER CODE END 4 */
 
 /**

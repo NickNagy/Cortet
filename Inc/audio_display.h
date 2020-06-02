@@ -10,7 +10,7 @@
 #define HEIGHT ILI9341_HEIGHT
 
 // TODO
-void displayWaveForm(float wave[], uint8_t size, uint8_t amplitude);
+void displayWaveForm(float wave[], uint16_t size, uint16_t amplitude);\
 void displayFFT();
 void printText();
 void printValue();

@@ -33,6 +33,7 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "dsp.h"
+#include "audio_display.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

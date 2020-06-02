@@ -1,6 +1,6 @@
 #include "audio_display.h"
 
-void displayWaveform(float wave[], uint8_t size, uint8_t amplitude) {
+void displayWaveform(float wave[], uint16_t size, uint16_t amplitude) {
 	int i, hStep, vStep;
 	hStep = HEIGHT / size; // height corresponds to longer length
 	vStep = WIDTH / amplitude;

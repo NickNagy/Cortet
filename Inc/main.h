@@ -62,7 +62,16 @@ void Error_Handler(void);
 #define FMC_RST_Pin GPIO_PIN_2
 #define FMC_RST_GPIO_Port GPIOD
 /* USER CODE BEGIN Private defines */
-#define AUDIO_BUFFER_SIZE 32
+#define AUDIO_DATA_SIZE 24
+#if AUDIO_DATA_SIZE == 24
+#define I2S_DATAFORMAT I2S_DATAFORMAT_24B
+#define AUDIO_BUFFER_T int32_t
+#else
+#define I2S_DATAFORMAT I2S_DATAFORMAT_16B
+#define AUDIO_BUFFER_T int16_t
+#endif
+
+#define AUDIO_BUFFER_PTR_T AUDIO_BUFFER_T*
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

@@ -61,6 +61,7 @@ static void MX_FMC_Init(void);
 static void MX_I2S2_Init(void);
 static void MX_I2S3_Init(void);
 /* USER CODE BEGIN PFP */
+static void SplitChannels(void * buffer, uint16_t size);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -410,6 +411,25 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+#define IN_PLACE_SWAP 0 // TODO
+
+static AUDIO_BUFFER_PTR_T SplitChannels(AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size) {
+	assert(size%2==0);
+	// TODO: verify which channel is sampled first
+	// TODO: try and make in-place swap
+	uint16_t rightStartIdx = size>>1;
+#if IN_PLACE_SWAP
+#else
+	AUDIO_BUFFER_T tmp[size>>1];
+	for (int i = 0; i < size-1; i += 2) {
+		tmp[i] = *(bufferCopy + i);
+		tmp[i + rightStartIdx] = *(bufferCopy + i + 1);
+	}
+	bufferCopy = &tmp;
+	return bufferCopy;
+#endif
+}
+
 
 void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
 	txBuf[0] = rxBuf[0];

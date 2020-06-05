@@ -1,21 +1,23 @@
 #include "audio_display.h"
 
 static WindowLinkedListStruct * windowList;
-static numWindows = 0;
+static uint8_t numWindows = 0;
 
-// TODO: remove amplitude
-void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t amplitude, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height) {
-	int i, hStep, vStep;
+void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height) {
+	int i;
+	float hStep, vStep;
 	hStep = width / size; // height corresponds to longer length
-	vStep = height / amplitude;
+	/*
+	 * Because keeping track of the amplitude of an array is tedious and inefficient, I use a ratio of window height vs
+	 * WORST-CASE amplitude (ie, maximum unsigned value data can be, which is (1 << (AUDIO_DATA_SIZE - 1)) - 1)
+	 *
+	 * WARNING, if data is much less than MAX, will be truncated to zero
+	 * */
+	vStep = height / (1 << (AUDIO_DATA_SIZE - 1));
 	y0 += height>>1;
 	for (i = 0; i < size-1; i++) {
-		ILI9341_drawLine(x0 + i*hStep, y0 + (int)(data[i]*vStep), x0 + (i+1)*hStep, y0 + (int)(data[i+1]*vStep), color);
+		ILI9341_drawLine(x0 + i*hStep, y0 + (int16_t)(data[i]*vStep), x0 + (i+1)*hStep, y0 + (int16_t)(data[i+1]*vStep), color);
 	}
-}
-
-void displayTextBox(uint16_t x0, uint16_t y0, uint16_t width, uint16_t height, uint16_t boxColor, uint16_t boxFillColor, uint16_t textColor, char ** text) {
-	// TODO
 }
 
 void displayWindow(WindowStruct * w) {
@@ -27,7 +29,8 @@ void displayWindow(WindowStruct * w) {
 	if (w->Plot) {
 		PlotStruct * plt = w->Plot;
 		ILI9341_Fill_Rect(x0, y0, x1, y1, plt->BackgroundColor);
-		drawDataWave(plt->Data, plt->Size, plt->DataColor, w->X, w->Y, w->Width, w->Height);
+		if (plt->Data)
+			drawDataWave(plt->Data, plt->Length, plt->DataColor, w->X, w->Y, w->Width, w->Height);
 	} else {
 		ILI9341_Fill_Rect(x0, y0, x1, y1, w->BackgroundColor);
 	}
@@ -41,7 +44,8 @@ void displayWindow(WindowStruct * w) {
  * */
 void refreshPlot(WindowStruct * w, AUDIO_BUFFER_PTR_T newData) {
 	PlotStruct * p = w->Plot;
-	drawDataWave(p->Data, p->Length, p->BackgroundColor, w->X, w->Y, w->Width, w->Height);
+	if (p->Data) // if current data is null, skip drawing over it
+		drawDataWave(p->Data, p->Length, p->BackgroundColor, w->X, w->Y, w->Width, w->Height);
 	drawDataWave(newData, p->Length, p->DataColor, w->X, w->Y, w->Width, w->Height);
 	w->Plot->Data = newData;
 }
@@ -49,6 +53,7 @@ void refreshPlot(WindowStruct * w, AUDIO_BUFFER_PTR_T newData) {
 /* NOTE: assumes MAX_WINDOWS is 4 */
 static void refreshDisplays() {
 	ILI9341_Fill(BACKGROUND_COLOR); // clear screen
+	if (!numWindows) return;
 	// go back thru list and update orientation parameters in each window
 	WindowLinkedListStruct * current = windowList;
 	uint16_t width, height;
@@ -66,7 +71,7 @@ static void refreshDisplays() {
 }
 
 void addWindow(WindowStruct * w) {
-	assert(numWindows < MAX_WINDOWS - 1);
+	//assert(numWindows < MAX_WINDOWS - 1);
 	WindowLinkedListStruct newWindowListNode;
 	newWindowListNode.Window = w;
 	if (!numWindows) {
@@ -83,7 +88,7 @@ void addWindow(WindowStruct * w) {
 }
 
 void deleteWindow(uint8_t idx) {
-	assert(idx < numWindows);
+	//assert(idx < numWindows);
 	if (!idx) { // if first window, move head to next node
 		if (numWindows == 1) {
 			windowList = 0; // null
@@ -100,22 +105,15 @@ void deleteWindow(uint8_t idx) {
 	refreshDisplays();
 }
 
-static WindowLinkedListStruct copyWindow(WindowLinkedList * w) {
-	WindowLinkedListStruct wCopy;
-	wCopy.Window = w->Window;
-	wCopy.Next = w->Next;
-	return wCopy;
-}
-
 void swapWindows(uint8_t idx1, uint8_t idx2) {
-	assert(numWindows > 1 && idx1!=idx2 && idx1 < numWindows && idx2 < numWindows);
+	//assert(numWindows > 1 && idx1!=idx2 && idx1 < numWindows && idx2 < numWindows);
 	uint8_t tmp;
 	if (idx1 > idx2) {
 		tmp = idx2;
 		idx2 = idx1;
 		idx1 = tmp;
 	}
-	WindowLinkedListStruct * w1, w2, w1Prev, w2Prev, wTmp;
+	WindowLinkedListStruct * w1, * w2, * w1Prev, * w2Prev, * wTmp;
 	wTmp = windowList;
 	w1 = wTmp;
 	for (int i = 0; i < idx2; i++) {

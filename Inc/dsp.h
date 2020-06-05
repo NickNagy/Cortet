@@ -6,11 +6,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "arm_math.h"
+#include "i2s_audio_settings.h"
 
-#define AUDIO_RESOLUTION  16 // move to a different header file
-#define AUDIO_SAMPLE_FREQ 96 // move to a different header file --> also adjust to REAL sample frequency
-
-#if AUDIO_RESOLUTION > 16
+#if AUDIO_DATA_SIZE > 16
 
 #define UINT uint32_t
 #define Q    q31_t

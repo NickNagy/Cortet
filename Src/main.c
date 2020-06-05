@@ -46,8 +46,16 @@ I2S_HandleTypeDef hi2s2;
 I2S_HandleTypeDef hi2s3;
 DMA_HandleTypeDef hdma_spi2_rx;
 DMA_HandleTypeDef hdma_spi3_tx;
-
 SRAM_HandleTypeDef hsram1;
+TIM_HandleTypeDef animationTimer;
+PlotStruct leftChannelPlot, rightChannelPlot;
+WindowStruct leftChannelWindow, rightChannelWindow;
+ARM_RFFT_INSTANCE        leftRFFTInstance, rightRFFTInstance;
+ARM_CFFT_RADIX4_INSTANCE leftCFFTInstance, rightCFFTInstance;
+
+uint8_t rxBuf[AUDIO_BUFFER_16BIT_LENGTH<<1];
+uint8_t txBuf[AUDIO_BUFFER_16BIT_LENGTH<<1];
+AUDIO_BUFFER_T rxBufCopy[AUDIO_BUFFER_LENGTH];
 
 /* USER CODE BEGIN PV */
 
@@ -61,17 +69,13 @@ static void MX_FMC_Init(void);
 static void MX_I2S2_Init(void);
 static void MX_I2S3_Init(void);
 /* USER CODE BEGIN PFP */
-static void SplitChannels(void * buffer, uint16_t size);
+static void animationTimer_Init(void);
+static void splitChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size);
+static void combineChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-uint8_t lsample, rsample;
-uint8_t rxBuf[8];
-uint8_t txBuf[8];
-
-ARM_RFFT_INSTANCE        leftRFFTInstance, rightRFFTInstance;
-ARM_CFFT_RADIX4_INSTANCE leftCFFTInstance, rightCFFTInstance;
 
 /* USER CODE END 0 */
 
@@ -104,26 +108,43 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+
   MX_DMA_Init();
   MX_FMC_Init();
   /* USER CODE BEGIN 2 */
   MX_I2S3_Init();
   MX_I2S2_Init();
 
+  animationTimer_Init();
+
   HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_RESET);
   HAL_Delay(10);
   HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_SET);
 
   ILI9341_Init();
-  ILI9341_setRotation(2);
+  ILI9341_setRotation(1);
   ILI9341_Fill(COLOR_BLUE);
 
-  result = HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)&txBuf, 4);
-  result = HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)&rxBuf, 4);
+  HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)&txBuf, AUDIO_BUFFER_16BIT_LENGTH);
+  HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)&rxBuf, AUDIO_BUFFER_16BIT_LENGTH);
 
+  // left channel config
+  leftChannelPlot.DataColor = COLOR_GREEN;
+  leftChannelPlot.Length = AUDIO_BUFFER_LENGTH >> 1;
+  leftChannelWindow.Plot = &leftChannelPlot;
+  leftChannelWindow.BackgroundColor = COLOR_BLACK;
+  leftChannelWindow.BorderColor = COLOR_RED;
+
+  // right channel config
+  rightChannelPlot.DataColor = COLOR_YELLOW;
+  rightChannelPlot.Length = AUDIO_BUFFER_LENGTH >> 1;
+  rightChannelWindow.Plot = &rightChannelPlot;
+  rightChannelWindow.BackgroundColor = COLOR_BLACK;
+  rightChannelWindow.BorderColor = COLOR_ORANGE;
+
+  addWindow(&leftChannelWindow);
+  addWindow(&rightChannelWindow);
   /* USER CODE END 2 */
- 
- 
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -207,9 +228,9 @@ static void MX_I2S2_Init(void)
   hi2s2.Instance = SPI2;
   hi2s2.Init.Mode = I2S_MODE_MASTER_RX;
   hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
-  hi2s2.Init.DataFormat = I2S_DATAFORMAT_24B;
+  hi2s2.Init.DataFormat = I2S_DATAFORMAT;
   hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
-  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_44K;
+  hi2s2.Init.AudioFreq = I2S_SAMPLE_RATE;
   hi2s2.Init.CPOL = I2S_CPOL_LOW;
   hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
   if (HAL_I2S_Init(&hi2s2) != HAL_OK)
@@ -266,10 +287,10 @@ static void MX_DMA_Init(void)
 
   /* DMA interrupt init */
   /* DMA1_Stream1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
   /* DMA1_Stream5_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 1, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
 
 }
@@ -355,42 +376,69 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(FMC_RST_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin: BLUE LED (testing timer) */
+  GPIO_InitStruct.Pin = TEST_LED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(TEST_LED_GPIO_Port, &GPIO_InitStruct);
 }
 
 /* USER CODE BEGIN 4 */
-#define IN_PLACE_SPLIT 0 // TODO
+static void animationTimer_Init() {
+	__TIM2_CLK_ENABLE();
+	/*
+	 * Prescaler defines how frequently the counter increments
+	 * By assuring it is set to 1MHz, can set the period easily
+	 *
+	 * */
+	animationTimer.Instance = TIM2;
+	animationTimer.Init.Prescaler = 40000; //167; // @ 1MHz TODO:
+	animationTimer.Init.CounterMode = TIM_COUNTERMODE_UP;
+	animationTimer.Init.Period = 500; //1000000 / ANIMATION_FREQUENCY;
+	HAL_TIM_Base_Init(&animationTimer);
+	HAL_TIM_Base_Start_IT(&animationTimer);
 
-/**
-  * @brief  Takes 2-channel data buffer and re-arranges buffer such that the first half
-  * 		is contiguous left-channel data, and second half is right-channel data
-  *         in the I2S_InitTypeDef and create the associated handle.
-  * @param  bufferCopy: ptr to buffer data !FUNCTION WILL OVERWRITE ORIGINAL DATA!
-  * 		size: size (total number of samples) of buffer
-  * @retval ptr to split buffer
-  */
-static AUDIO_BUFFER_PTR_T SplitChannels(AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size) {
-	assert(size%2==0);
-	// TODO: verify which channel is sampled first
-	// TODO: try and make in-place swap
-	uint16_t rightStartIdx = size>>1;
-#if IN_PLACE_SPLIT
-#else
-	AUDIO_BUFFER_T tmp[size>>1];
-	for (int i = 0; i < size-1; i += 2) {
-		tmp[i] = *(bufferCopy + i);
-		tmp[i + rightStartIdx] = *(bufferCopy + i + 1);
-	}
-	bufferCopy = &tmp;
-	return bufferCopy;
-#endif
+	HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
+	HAL_NVIC_EnableIRQ(TIM2_IRQn);
 }
 
+/**
+  * @brief  Takes 2-channel data buffer and re-arranges data into bufferCopy such that the first half
+  * 		is contiguous left-channel data, and second half is right-channel data
+  *         in the I2S_InitTypeDef and create the associated handle.
+  * @param  buffer: original 2-channel data buffer, every other idx is a different channel
+  * 		bufferCopy: ptr to split buffer, first half is left channel, second half is right channel
+  * 		size: size (total number of samples) of buffer
+  * @retval None
+  */
+static void splitChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size) {
+	uint16_t rightStartIdx = size>>1;
+	for (int i = 0; i < size>>1; i++) {
+		int iTimesTwo = i<<1;
+		*(bufferCopy + i) = *(buffer + iTimesTwo);
+		*(bufferCopy + i + rightStartIdx)= *(buffer + iTimesTwo + 1);
+	}
+}
+
+static void combineChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size) {
+	uint16_t rightStartIdx = size>>1;
+	for (int i = 0; i < size>>1; i++) {
+		int iTimesTwo = i << 1;
+		*(bufferCopy + iTimesTwo) = *(buffer + i);
+		*(bufferCopy + iTimesTwo + 1) = *(bufferCopy + i + rightStartIdx);
+	}
+}
+
+extern void TIM2_IRQHandler() {
+	HAL_TIM_IRQHandler(&animationTimer);
+}
 
 void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
-	txBuf[0] = rxBuf[0];
-	txBuf[1] = rxBuf[1];
-	txBuf[2] = rxBuf[2];
-	txBuf[3] = rxBuf[3];
+	// only want to traverse half the length, but also the buffers are 8b
+	for (int i = 0; i < AUDIO_BUFFER_16BIT_LENGTH; i++) {
+		txBuf[i] = rxBuf[i];
+	}
 }
 
 void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
@@ -398,14 +446,22 @@ void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
 }
 
 void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s) {
-	txBuf[4] = rxBuf[4];
-	txBuf[5] = rxBuf[5];
-	txBuf[6] = rxBuf[6];
-	txBuf[7] = rxBuf[7];
+	// only want to traverse half the lenght, but also the buffers are 8b
+	for (int i = AUDIO_BUFFER_16BIT_LENGTH; i < AUDIO_BUFFER_16BIT_LENGTH<<1; i++) {
+		txBuf[i] = rxBuf[i];
+	}
 }
 
 void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s) {
 	// TODO:
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim) {
+	HAL_GPIO_TogglePin(TEST_LED_GPIO_Port, TEST_LED_Pin);
+	/*AUDIO_BUFFER_PTR_T rxBufCopyPtr = (AUDIO_BUFFER_PTR_T)&rxBufCopy;
+	splitChannels((AUDIO_BUFFER_PTR_T)&rxBuf, rxBufCopyPtr, AUDIO_BUFFER_LENGTH);
+	refreshPlot(&leftChannelWindow, rxBufCopyPtr);
+	refreshPlot(&leftChannelWindow, rxBufCopyPtr + (AUDIO_BUFFER_LENGTH>>1));*/
 }
 /* USER CODE END 4 */
 

@@ -2,12 +2,15 @@
 #define __AUDIO_DISPLAY_H
 
 #include "MA_ILI9341.h"
+#include "i2s_audio_settings.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 #define BACKGROUND_COLOR COLOR_BLUE
 #define WIDTH  ILI9341_WIDTH
 #define HEIGHT ILI9341_HEIGHT
+
+#define ANIMATION_FREQUENCY 24 // used for timer interrupt
 
 #define MAX_WINDOWS 4
 
@@ -22,7 +25,7 @@ typedef struct PlotStruct{
 }PlotStruct;
 
 typedef struct WindowStruct {
-	PlotStruct Plot;
+	PlotStruct * Plot;
 	uint16_t X;
 	uint16_t Y;
 	uint16_t Width;
@@ -34,12 +37,11 @@ typedef struct WindowStruct {
 }WindowStruct;
 
 typedef struct WindowLinkedListStruct {
-	WindowsLinkedListStruct * Next;
+	struct WindowLinkedListStruct * Next;
 	WindowStruct * Window;
-} WindowsLinkedListStruct;
+} WindowLinkedListStruct;
 
-// TODO
-void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t amplitude, uint16_t color, uint8_t window);
+void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height);
 void displayPlot(WindowStruct * w);
 void refreshPlot(WindowStruct * w, AUDIO_BUFFER_PTR_T newData);
 static void refreshDisplays();

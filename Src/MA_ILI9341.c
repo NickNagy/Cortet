@@ -460,8 +460,7 @@ void ILI9341_printImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t 
 //13. Set screen rotation
 void ILI9341_setRotation(uint8_t rotate)
 {
-	switch(rotate)
-	{
+	switch(rotate) {
 		case 1:
 			rotationNum = 1;
 			ILI9341_SendCommand(ILI9341_MEMCONTROL);

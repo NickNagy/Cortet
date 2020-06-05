@@ -21,25 +21,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
 /* Private variables ---------------------------------------------------------*/
 
 I2S_HandleTypeDef hi2s2;
@@ -48,18 +29,21 @@ DMA_HandleTypeDef hdma_spi2_rx;
 DMA_HandleTypeDef hdma_spi3_tx;
 SRAM_HandleTypeDef hsram1;
 TIM_HandleTypeDef animationTimer;
-PlotStruct leftChannelPlot, rightChannelPlot;
-WindowStruct leftChannelWindow, rightChannelWindow;
+
+// for audio_display
+PlotStruct leftChannelPlot = DEFAULT_PLOT_STRUCT;
+PlotStruct rightChannelPlot = DEFAULT_PLOT_STRUCT;
+WindowStruct leftChannelWindow = DEFAULT_WINDOW_STRUCT;
+WindowStruct rightChannelWindow = DEFAULT_WINDOW_STRUCT;
+
+// for FFT
 ARM_RFFT_INSTANCE        leftRFFTInstance, rightRFFTInstance;
 ARM_CFFT_RADIX4_INSTANCE leftCFFTInstance, rightCFFTInstance;
 
+// for DMA
 uint8_t rxBuf[AUDIO_BUFFER_16BIT_LENGTH<<1];
 uint8_t txBuf[AUDIO_BUFFER_16BIT_LENGTH<<1];
 AUDIO_BUFFER_T rxBufCopy[AUDIO_BUFFER_LENGTH];
-
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
@@ -68,16 +52,9 @@ static void MX_DMA_Init(void);
 static void MX_FMC_Init(void);
 static void MX_I2S2_Init(void);
 static void MX_I2S3_Init(void);
-/* USER CODE BEGIN PFP */
 static void animationTimer_Init(void);
 static void splitChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size);
 static void combineChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size);
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
 
 /**
   * @brief  The application entry point.
@@ -85,33 +62,19 @@ static void combineChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T buffer
   */
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-  
-
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
   /* Configure the system clock */
   SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
 
   MX_DMA_Init();
   MX_FMC_Init();
-  /* USER CODE BEGIN 2 */
   MX_I2S3_Init();
   MX_I2S2_Init();
 
@@ -122,8 +85,8 @@ int main(void)
   HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_SET);
 
   ILI9341_Init();
-  ILI9341_setRotation(1);
-  ILI9341_Fill(COLOR_BLUE);
+  ILI9341_setRotation(SCREEN_ORIENTATION);
+  ILI9341_Fill(BACKGROUND_COLOR);
 
   HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)&txBuf, AUDIO_BUFFER_16BIT_LENGTH);
   HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)&rxBuf, AUDIO_BUFFER_16BIT_LENGTH);
@@ -144,16 +107,10 @@ int main(void)
 
   addWindow(&leftChannelWindow);
   addWindow(&rightChannelWindow);
-  /* USER CODE END 2 */
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-    /* USER CODE BEGIN 3 */
   }
-  /* USER CODE END 3 */
 }
 
 /**
@@ -217,14 +174,6 @@ void SystemClock_Config(void)
   */
 static void MX_I2S2_Init(void)
 {
-
-  /* USER CODE BEGIN I2S2_Init 0 */
-
-  /* USER CODE END I2S2_Init 0 */
-
-  /* USER CODE BEGIN I2S2_Init 1 */
-
-  /* USER CODE END I2S2_Init 1 */
   hi2s2.Instance = SPI2;
   hi2s2.Init.Mode = I2S_MODE_MASTER_RX;
   hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
@@ -237,10 +186,6 @@ static void MX_I2S2_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN I2S2_Init 2 */
-
-  /* USER CODE END I2S2_Init 2 */
-
 }
 
 /**
@@ -250,14 +195,6 @@ static void MX_I2S2_Init(void)
   */
 static void MX_I2S3_Init(void)
 {
-
-  /* USER CODE BEGIN I2S3_Init 0 */
-
-  /* USER CODE END I2S3_Init 0 */
-
-  /* USER CODE BEGIN I2S3_Init 1 */
-
-  /* USER CODE END I2S3_Init 1 */
   hi2s3.Instance = SPI3;
   hi2s3.Init.Mode = I2S_MODE_SLAVE_TX;
   hi2s3.Init.Standard = I2S_STANDARD_PHILIPS;
@@ -270,10 +207,6 @@ static void MX_I2S3_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN I2S3_Init 2 */
-
-  /* USER CODE END I2S3_Init 2 */
-
 }
 
 /** 
@@ -298,16 +231,7 @@ static void MX_DMA_Init(void)
 /* FMC initialization function */
 static void MX_FMC_Init(void)
 {
-
-  /* USER CODE BEGIN FMC_Init 0 */
-
-  /* USER CODE END FMC_Init 0 */
-
   FMC_NORSRAM_TimingTypeDef Timing = {0};
-
-  /* USER CODE BEGIN FMC_Init 1 */
-
-  /* USER CODE END FMC_Init 1 */
 
   /** Perform the SRAM1 memory initialization sequence
   */
@@ -344,9 +268,8 @@ static void MX_FMC_Init(void)
     Error_Handler( );
   }
 
-  /* USER CODE BEGIN FMC_Init 2 */
+  /* Enable swapping to use 0xCxxxxxxx address space */
   HAL_EnableFMCMemorySwapping();
-  /* USER CODE END FMC_Init 2 */
 }
 
 /**
@@ -384,8 +307,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(TEST_LED_GPIO_Port, &GPIO_InitStruct);
 }
 
-/* USER CODE BEGIN 4 */
+/* Initializes TIM2, the time base for LCD frame updates for animations (24fps) */
 static void animationTimer_Init() {
+	// enable clock timer
 	__TIM2_CLK_ENABLE();
 	/*
 	 * Prescaler defines how frequently the counter increments
@@ -399,15 +323,14 @@ static void animationTimer_Init() {
 	HAL_TIM_Base_Init(&animationTimer);
 	HAL_TIM_Base_Start_IT(&animationTimer);
 
-	HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
+	HAL_NVIC_SetPriority(TIM2_IRQn, 1, 0);
 	HAL_NVIC_EnableIRQ(TIM2_IRQn);
 }
 
 /**
   * @brief  Takes 2-channel data buffer and re-arranges data into bufferCopy such that the first half
   * 		is contiguous left-channel data, and second half is right-channel data
-  *         in the I2S_InitTypeDef and create the associated handle.
-  * @param  buffer: original 2-channel data buffer, every other idx is a different channel
+  * @param  buffer: ptr to original 2-channel data buffer, every other idx is a different channel
   * 		bufferCopy: ptr to split buffer, first half is left channel, second half is right channel
   * 		size: size (total number of samples) of buffer
   * @retval None
@@ -421,6 +344,14 @@ static void splitChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T bufferCo
 	}
 }
 
+/**
+ * @brief  Takes a buffer where first half is left-channel data and second half is right-channel data,
+ * 		   and rearranges such that channel data alternates by idx
+ * @param  buffer: ptr to original {left-channel data, right-channel data} buffer
+ * 		   bufferCopy: ptr to 2-channel data buffer, where every other idx is a different channel
+ * 		   size: size (total number of samples) of buffer
+ * @retval None
+ */
 static void combineChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size) {
 	uint16_t rightStartIdx = size>>1;
 	for (int i = 0; i < size>>1; i++) {
@@ -430,6 +361,7 @@ static void combineChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T buffer
 	}
 }
 
+/* TIM2 IRQ Handler */
 extern void TIM2_IRQHandler() {
 	HAL_TIM_IRQHandler(&animationTimer);
 }
@@ -463,7 +395,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim) {
 	refreshPlot(&leftChannelWindow, rxBufCopyPtr);
 	refreshPlot(&leftChannelWindow, rxBufCopyPtr + (AUDIO_BUFFER_LENGTH>>1));*/
 }
-/* USER CODE END 4 */
 
 /**
   * @brief  This function is executed in case of error occurrence.

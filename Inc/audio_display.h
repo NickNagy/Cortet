@@ -7,8 +7,15 @@
 #include <stdlib.h>
 
 #define BACKGROUND_COLOR COLOR_BLUE
+#define SCREEN_ORIENTATION 1
+
+#if SCREEN_ORIENTATION % 2
 #define WIDTH  ILI9341_WIDTH
 #define HEIGHT ILI9341_HEIGHT
+#else
+#define WIDTH  ILI9341_HEIGHT
+#define HEIGHT ILI9341_WIDTH
+#endif
 
 #define ANIMATION_FREQUENCY 24 // used for timer interrupt
 
@@ -24,6 +31,9 @@ typedef struct PlotStruct{
 	char ** PlotTitle;
 }PlotStruct;
 
+#define DEFAULT_PLOT_STRUCT {.Data = 0, .Length = 0, .AxisColor = 0, .BackgroundColor = 0, .DataColor = 0, .TextColor = 0, .PlotTitle = 0}
+#define INIT_PLOT_STRUCT(x) x = DEFAULT_PLOT_STRUCT;
+
 typedef struct WindowStruct {
 	PlotStruct * Plot;
 	uint16_t X;
@@ -36,10 +46,16 @@ typedef struct WindowStruct {
 	char ** WindowTitle;
 }WindowStruct;
 
-typedef struct WindowLinkedListStruct {
-	struct WindowLinkedListStruct * Next;
+#define DEFAULT_WINDOW_STRUCT {.Plot = 0, .X = 0, .Y = 0, .Width = 0, .Height = 0, .BackgroundColor = 0, .BorderColor = 0, .TextColor = 0, .WindowTitle = ""}
+#define INIT_WINDOW_STRUCT(x) x = DEFAULT_WINDOW_STRUCT;
+
+typedef struct WindowLinkedListNode {
 	WindowStruct * Window;
-} WindowLinkedListStruct;
+	struct WindowLinkedListNode * Next;
+} WindowLinkedListNode;
+
+#define DEFAULT_WINDOW_LINKED_LIST_STRUCT {.Next = 0, .Window = 0}
+#define INIT_WINDOW_LINKED_LIST_STRUCT(x) x = DEFAULT_WINDOW_LINKED_LIST_STRUCT;
 
 void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height);
 void displayPlot(WindowStruct * w);

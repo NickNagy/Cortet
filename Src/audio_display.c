@@ -1,7 +1,7 @@
 #include "audio_display.h"
 
-static WindowLinkedListStruct * windowList;
-static uint8_t numWindows = 0;
+static volatile WindowLinkedListNode * windowList = 0; // volatile in the hopes I can track it in debugger
+static volatile uint8_t numWindows = 0;
 
 void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height) {
 	int i;
@@ -55,7 +55,7 @@ static void refreshDisplays() {
 	ILI9341_Fill(BACKGROUND_COLOR); // clear screen
 	if (!numWindows) return;
 	// go back thru list and update orientation parameters in each window
-	WindowLinkedListStruct * current = windowList;
+	volatile WindowLinkedListNode * current = windowList;
 	uint16_t width, height;
 	width = WIDTH >> ((numWindows-1)>>1); // only compress width if numWindows > 3
 	height = HEIGHT >> (numWindows > 1); // only compress if numWindows > 1
@@ -72,16 +72,17 @@ static void refreshDisplays() {
 
 void addWindow(WindowStruct * w) {
 	//assert(numWindows < MAX_WINDOWS - 1);
-	WindowLinkedListStruct newWindowListNode;
-	newWindowListNode.Window = w;
+	WindowLinkedListNode * newWindowLinkedListNode = (WindowLinkedListNode *)malloc(sizeof(WindowLinkedListNode));
+	newWindowLinkedListNode->Window = w;
+	newWindowLinkedListNode->Next = 0;
 	if (!numWindows) {
-		windowList = &newWindowListNode;
+		windowList = newWindowLinkedListNode;
 	} else {
-		WindowLinkedListStruct * current = windowList;
+		WindowLinkedListNode * current = windowList;
 		while(current->Next) {
 			current = current->Next;
 		}
-		current->Next = &newWindowListNode;
+		current->Next = newWindowLinkedListNode;
 	}
 	numWindows++;
 	refreshDisplays();
@@ -96,7 +97,7 @@ void deleteWindow(uint8_t idx) {
 			windowList = windowList -> Next;
 		}
 	}
-	WindowLinkedListStruct * prev = windowList;
+	WindowLinkedListNode * prev = windowList;
 	for (int i = 0; i < idx-1; i++) { // go to node directly preceding the one we want to delete
 		prev = prev->Next;
 	}
@@ -105,6 +106,7 @@ void deleteWindow(uint8_t idx) {
 	refreshDisplays();
 }
 
+/* WARNING: this function probably doesn't work right now */
 void swapWindows(uint8_t idx1, uint8_t idx2) {
 	//assert(numWindows > 1 && idx1!=idx2 && idx1 < numWindows && idx2 < numWindows);
 	uint8_t tmp;
@@ -113,7 +115,7 @@ void swapWindows(uint8_t idx1, uint8_t idx2) {
 		idx2 = idx1;
 		idx1 = tmp;
 	}
-	WindowLinkedListStruct * w1, * w2, * w1Prev, * w2Prev, * wTmp;
+	WindowLinkedListNode * w1, * w2, * w1Prev, * w2Prev, * wTmp;
 	wTmp = windowList;
 	w1 = wTmp;
 	for (int i = 0; i < idx2; i++) {

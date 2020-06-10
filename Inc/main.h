@@ -1,4 +1,4 @@
-/* USER CODE BEGIN Header */
+
 /**
   ******************************************************************************
   * @file           : main.h
@@ -17,7 +17,6 @@
   *
   ******************************************************************************
   */
-/* USER CODE END Header */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef __MAIN_H
@@ -28,44 +27,26 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include "stm32f7xx_hal.h"
-
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-#include "dsp.h"
-#include "audio_display.h"
-#include "i2s_audio_settings.h"
-/* USER CODE END Includes */
-
-/* Exported types ------------------------------------------------------------*/
-/* USER CODE BEGIN ET */
-
-/* USER CODE END ET */
-
-/* Exported constants --------------------------------------------------------*/
-/* USER CODE BEGIN EC */
-
-/* USER CODE END EC */
-
-/* Exported macro ------------------------------------------------------------*/
-/* USER CODE BEGIN EM */
-
-/* USER CODE END EM */
-
+#include "stm32f7xx_hal.h" // <-- might create issues, multiple instances of functions
+/*#include "stm32f7xx_hal_rcc.h"
+#include "stm32f7xx_hal_exti.h"
+#include "stm32f7xx_hal_gpio.h"
+#include "stm32f7xx_hal_cortex.h"
+#include "stm32f7xx_hal_flash.h"
+#include "stm32f7xx_hal_i2c.h"
+#include "stm32f7xx_hal_pwr.h"
+#include "stm32f7xx_hal_tim.h"*/
+#include "audio.h"
+#include "display.h"
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
-/* USER CODE BEGIN EFP */
-
-/* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
 #define FMC_RST_Pin GPIO_PIN_2
 #define FMC_RST_GPIO_Port GPIOD
-/* USER CODE BEGIN Private defines */
 #define TEST_LED_Pin GPIO_PIN_7
 #define TEST_LED_GPIO_Port GPIOA
-/* USER CODE END Private defines */
 
 #ifdef __cplusplus
 }

@@ -12,10 +12,15 @@ Description:				This library makes use of the FSMC interface of the STM32 board 
 
 //List of includes
 #include <stdbool.h>
-#include "stm32f7xx_hal.h"
+//#include "stm32f7xx_hal.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include "fmc.h"
 
+#define ILI9341_SRAM_BANK 1
+#define ILI9341_Ax		 18
+#define ILI9341_SEND_COMMAND(command) FMC_LCD_8BIT_SEND_COMMAND(ILI9341_SRAM_BANK, command)
+#define ILI9341_SEND_DATA(data) FMC_LCD_8BIT_SEND_DATA(ILI9341_SRAM_BANK, ILI9341_Ax, data)
 
 /** FMC GPIO Configuration
 PE7   ------> FMC_D4
@@ -389,9 +394,9 @@ const unsigned char font1[] = {
 
 //***** Functions prototypes *****//
 //1. Write Command to LCD
-void ILI9341_SendCommand(uint8_t com);
+//void ILI9341_SendCommand(uint8_t com);
 //2. Write data to LCD
-void ILI9341_SendData(uint8_t data);
+//void ILI9341_SendData(uint8_t data);
 
 void ILI9341_WriteRegister16(uint8_t r, uint16_t d);
 void ILI9341_WriteRegister32(uint8_t r, uint32_t d);

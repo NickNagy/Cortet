@@ -17,34 +17,30 @@ static bool _cp437    = false;
 
 //***** Functions prototypes *****//
 //1. Write Command to LCD
-void ILI9341_SendCommand(uint8_t com)
+/*void ILI9341_SEND_COMMAND(uint8_t com)
 {
-	//CD_COMMAND;
 	*(__IO uint8_t *)(0xC0000000) = com;
-	//WR_STROBE;
 }
 
 //2. Write data to LCD
-void ILI9341_SendData(uint8_t data)
+void ILI9341_SEND_DATA(uint8_t data)
 {
-	//CD_DATA;
 	*(__IO uint8_t *)(0xC0040000) = data;
-	//WR_STROBE;
-}
+}*/
 
 // TODO: verify &0xFF
 void ILI9341_WriteRegister16(uint8_t r, uint16_t d) {
-	ILI9341_SendCommand(r);
-	ILI9341_SendData(d >> 8);
-	ILI9341_SendData(d & 0xFF);
+	ILI9341_SEND_COMMAND(r);
+	ILI9341_SEND_DATA(d >> 8);
+	ILI9341_SEND_DATA(d & 0xFF);
 }
 
 void ILI9341_WriteRegister32(uint8_t r, uint32_t d) {
-	ILI9341_SendCommand(r);
-	ILI9341_SendData(d >> 24);
-	ILI9341_SendData(d >> 16);
-	ILI9341_SendData(d >> 8);
-	ILI9341_SendData(d & 0xFF);
+	ILI9341_SEND_COMMAND(r);
+	ILI9341_SEND_DATA(d >> 24);
+	ILI9341_SEND_DATA(d >> 16);
+	ILI9341_SEND_DATA(d >> 8);
+	ILI9341_SEND_DATA(d & 0xFF);
 }
 
 //3. Set cursor position
@@ -54,84 +50,96 @@ void ILI9341_SetCursorPosition(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y
   ILI9341_WriteRegister32(ILI9341_COLUMN_ADDR, t);
   t = (y1 << 16) | y2;
   ILI9341_WriteRegister32(ILI9341_PAGE_ADDR, t);
-  ILI9341_SendCommand (ILI9341_GRAM);
+  ILI9341_SEND_COMMAND (ILI9341_GRAM);
 }
 //4. Initialise function
 void ILI9341_Init(void)
  {
-   ILI9341_SendCommand (ILI9341_RESET); // software reset comand
+   ExternalSRAMSpecStruct ILI9341Spec = {
+		   .dataSize = 8,
+		   .tACC = 40,
+		   .tAS = 0,
+		   .tWRLW = 15,
+		   .tCycRead = 160,
+		   .tCycWrite = 66,
+		   .writeOnly = 1
+   };
+
+   FMCSRAMInit(&ILI9341Spec, ILI9341_SRAM_BANK);
+
+   ILI9341_SEND_COMMAND (ILI9341_RESET); // software reset comand
    HAL_Delay(100);
-   ILI9341_SendCommand (ILI9341_DISPLAY_OFF); // display off
+   ILI9341_SEND_COMMAND (ILI9341_DISPLAY_OFF); // display off
    //------------power control------------------------------
-   ILI9341_SendCommand (ILI9341_POWER1); // power control
-   ILI9341_SendData   (0x26); // GVDD = 4.75v
-   ILI9341_SendCommand (ILI9341_POWER2); // power control
-   ILI9341_SendData   (0x11); // AVDD=VCIx2, VGH=VCIx7, VGL=-VCIx3
+   ILI9341_SEND_COMMAND (ILI9341_POWER1); // power control
+   ILI9341_SEND_DATA   (0x26); // GVDD = 4.75v
+   ILI9341_SEND_COMMAND (ILI9341_POWER2); // power control
+   ILI9341_SEND_DATA   (0x11); // AVDD=VCIx2, VGH=VCIx7, VGL=-VCIx3
    //--------------VCOM-------------------------------------
-   ILI9341_SendCommand (ILI9341_VCOM1); // vcom control
-   ILI9341_SendData   (0x35); // Set the VCOMH voltage (0x35 = 4.025v)
-   ILI9341_SendData   (0x3e); // Set the VCOML voltage (0x3E = -0.950v)
-   ILI9341_SendCommand (ILI9341_VCOM2); // vcom control
-   ILI9341_SendData   (0xbe);
+   ILI9341_SEND_COMMAND (ILI9341_VCOM1); // vcom control
+   ILI9341_SEND_DATA   (0x35); // Set the VCOMH voltage (0x35 = 4.025v)
+   ILI9341_SEND_DATA   (0x3e); // Set the VCOML voltage (0x3E = -0.950v)
+   ILI9341_SEND_COMMAND (ILI9341_VCOM2); // vcom control
+   ILI9341_SEND_DATA   (0xbe);
 
    //------------memory access control------------------------
-   ILI9341_SendCommand (ILI9341_MAC); // memory access control
-   ILI9341_SendData(0x48);
+   ILI9341_SEND_COMMAND (ILI9341_MAC); // memory access control
+   ILI9341_SEND_DATA(0x48);
 
-   ILI9341_SendCommand (ILI9341_PIXEL_FORMAT); // pixel format set
-   ILI9341_SendData   (0x55); // 16bit /pixel
+   ILI9341_SEND_COMMAND (ILI9341_PIXEL_FORMAT); // pixel format set
+   ILI9341_SEND_DATA   (0x55); // 16bit /pixel
 
-	 ILI9341_SendCommand(ILI9341_FRC);
-   ILI9341_SendData(0);
-   ILI9341_SendData(0x1F);
+	 ILI9341_SEND_COMMAND(ILI9341_FRC);
+   ILI9341_SEND_DATA(0);
+   ILI9341_SEND_DATA(0x1F);
    //-------------ddram ----------------------------
-   ILI9341_SendCommand (ILI9341_COLUMN_ADDR); // column set
-   ILI9341_SendData   (0x00); // x0_HIGH---0
-   ILI9341_SendData   (0x00); // x0_LOW----0
-   ILI9341_SendData   (0x00); // x1_HIGH---240
-   ILI9341_SendData   (0xEF); // x1_LOW----240
-   ILI9341_SendCommand (ILI9341_PAGE_ADDR); // page address set
-   ILI9341_SendData   (0x00); // y0_HIGH---0
-   ILI9341_SendData   (0x00); // y0_LOW----0
-   ILI9341_SendData   (0x01); // y1_HIGH---320
-   ILI9341_SendData   (0x3F); // y1_LOW----320
+   ILI9341_SEND_COMMAND (ILI9341_COLUMN_ADDR); // column set
+   ILI9341_SEND_DATA   (0x00); // x0_HIGH---0
+   ILI9341_SEND_DATA   (0x00); // x0_LOW----0
+   ILI9341_SEND_DATA   (0x00); // x1_HIGH---240
+   ILI9341_SEND_DATA   (0xEF); // x1_LOW----240
+   ILI9341_SEND_COMMAND (ILI9341_PAGE_ADDR); // page address set
+   ILI9341_SEND_DATA   (0x00); // y0_HIGH---0
+   ILI9341_SEND_DATA   (0x00); // y0_LOW----0
+   ILI9341_SEND_DATA   (0x01); // y1_HIGH---320
+   ILI9341_SEND_DATA   (0x3F); // y1_LOW----320
 
-   ILI9341_SendCommand (ILI9341_TEARING_OFF); // tearing effect off
+   ILI9341_SEND_COMMAND (ILI9341_TEARING_OFF); // tearing effect off
    //LCD_write_cmd(ILI9341_TEARING_ON); // tearing effect on
    //LCD_write_cmd(ILI9341_DISPLAY_INVERSION); // display inversion
-   ILI9341_SendCommand (ILI9341_Entry_Mode_Set); // entry mode set
+   ILI9341_SEND_COMMAND (ILI9341_Entry_Mode_Set); // entry mode set
    // Deep Standby Mode: OFF
    // Set the output level of gate driver G1-G320: Normal display
    // Low voltage detection: Disable
-   ILI9341_SendData   (0x07);
+   ILI9341_SEND_DATA   (0x07);
    //-----------------display------------------------
-   ILI9341_SendCommand (ILI9341_DFC); // display function control
+   ILI9341_SEND_COMMAND (ILI9341_DFC); // display function control
    //Set the scan mode in non-display area
    //Determine source/VCOM output in a non-display area in the partial display mode
-   ILI9341_SendData   (0x0a);
+   ILI9341_SEND_DATA   (0x0a);
    //Select whether the liquid crystal type is normally white type or normally black type
    //Sets the direction of scan by the gate driver in the range determined by SCN and NL
    //Select the shift direction of outputs from the source driver
    //Sets the gate driver pin arrangement in combination with the GS bit to select the optimal scan mode for the module
    //Specify the scan cycle interval of gate driver in non-display area when PTG to select interval scan
-   ILI9341_SendData   (0x82);
+   ILI9341_SEND_DATA   (0x82);
    // Sets the number of lines to drive the LCD at an interval of 8 lines
-   ILI9341_SendData   (0x27);
-   ILI9341_SendData   (0x00); // clock divisor
+   ILI9341_SEND_DATA   (0x27);
+   ILI9341_SEND_DATA   (0x00); // clock divisor
 
-   ILI9341_SendCommand (ILI9341_SLEEP_OUT); // sleep out
+   ILI9341_SEND_COMMAND (ILI9341_SLEEP_OUT); // sleep out
    HAL_Delay(100);
-   ILI9341_SendCommand (ILI9341_DISPLAY_ON); // display on
+   ILI9341_SEND_COMMAND (ILI9341_DISPLAY_ON); // display on
    HAL_Delay(100);
-   ILI9341_SendCommand (ILI9341_GRAM); // memory write
+   ILI9341_SEND_COMMAND (ILI9341_GRAM); // memory write
    HAL_Delay(5);
  }
 
 //5. Write data to a single pixel
 void ILI9341_DrawPixel(uint16_t x, uint16_t y, uint16_t color) {
   ILI9341_SetCursorPosition(x, y, x, y);
-	ILI9341_SendData(color>>8);
-	ILI9341_SendData(color&0xFF);
+	ILI9341_SEND_DATA(color>>8);
+	ILI9341_SEND_DATA(color&0xFF);
 }
 //6. Fill the entire screen with a background color
 void ILI9341_Fill(uint16_t color) {
@@ -148,8 +156,8 @@ void ILI9341_Fill(uint16_t color) {
 	
 	while (n) {
 			n--;
-       ILI9341_SendData(color>>8);
-				ILI9341_SendData(color&0xff);
+       ILI9341_SEND_DATA(color>>8);
+				ILI9341_SEND_DATA(color&0xff);
 	}
 }
 //7. Rectangle drawing functions
@@ -159,8 +167,8 @@ void ILI9341_Fill_Rect(unsigned int x0,unsigned int y0, unsigned int x1,unsigned
 	ILI9341_SetCursorPosition(x0, y0, x1, y1);
 	while (n) {
 			n--;
-      ILI9341_SendData(color>>8);
-				ILI9341_SendData(color&0xff);
+      ILI9341_SEND_DATA(color>>8);
+				ILI9341_SEND_DATA(color&0xff);
 	}
 }
 
@@ -453,7 +461,7 @@ void ILI9341_printImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t 
 	ILI9341_SetCursorPosition(x, y, w+x-1, h+y-1);
 	for(uint32_t i=0; i<n ; i++)
 	{
-		ILI9341_SendData(data[i]);
+		ILI9341_SEND_DATA(data[i]);
 	}
 }
 
@@ -463,28 +471,28 @@ void ILI9341_setRotation(uint8_t rotate)
 	switch(rotate) {
 		case 1:
 			rotationNum = 1;
-			ILI9341_SendCommand(ILI9341_MEMCONTROL);
-			ILI9341_SendData(ILI9341_MADCTL_MY | ILI9341_MADCTL_BGR);
+			ILI9341_SEND_COMMAND(ILI9341_MEMCONTROL);
+			ILI9341_SEND_DATA(ILI9341_MADCTL_MY | ILI9341_MADCTL_BGR);
 			break;
 		case 2:
 			rotationNum = 2;
-			ILI9341_SendCommand(ILI9341_MEMCONTROL);
-			ILI9341_SendData(ILI9341_MADCTL_MV | ILI9341_MADCTL_BGR);
+			ILI9341_SEND_COMMAND(ILI9341_MEMCONTROL);
+			ILI9341_SEND_DATA(ILI9341_MADCTL_MV | ILI9341_MADCTL_BGR);
 			break;
 		case 3:
 			rotationNum = 3;
-			ILI9341_SendCommand(ILI9341_MEMCONTROL);
-			ILI9341_SendData(ILI9341_MADCTL_MX | ILI9341_MADCTL_BGR);
+			ILI9341_SEND_COMMAND(ILI9341_MEMCONTROL);
+			ILI9341_SEND_DATA(ILI9341_MADCTL_MX | ILI9341_MADCTL_BGR);
 			break;
 		case 4:
 			rotationNum = 4;
-			ILI9341_SendCommand(ILI9341_MEMCONTROL);
-			ILI9341_SendData(ILI9341_MADCTL_MX | ILI9341_MADCTL_MY | ILI9341_MADCTL_MV | ILI9341_MADCTL_BGR);
+			ILI9341_SEND_COMMAND(ILI9341_MEMCONTROL);
+			ILI9341_SEND_DATA(ILI9341_MADCTL_MX | ILI9341_MADCTL_MY | ILI9341_MADCTL_MV | ILI9341_MADCTL_BGR);
 			break;
 		default:
 			rotationNum = 1;
-			ILI9341_SendCommand(ILI9341_MEMCONTROL);
-			ILI9341_SendData(ILI9341_MADCTL_MY | ILI9341_MADCTL_BGR);
+			ILI9341_SEND_COMMAND(ILI9341_MEMCONTROL);
+			ILI9341_SEND_DATA(ILI9341_MADCTL_MY | ILI9341_MADCTL_BGR);
 			break;
 	}
 }

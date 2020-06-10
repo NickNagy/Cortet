@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "arm_math.h"
-#include "i2s_audio_settings.h"
+#include "audio_config.h"
 
 #if AUDIO_DATA_SIZE > 16
 
@@ -18,6 +18,8 @@
 #define ARM_RFFT_INIT(rfftInstancePtr, size) arm_rfft_init_q31(rfftInstancePtr, size, 0, 1)
 #define ARM_RFFT(instance, in, out)     arm_rfft_q31(instance, in, out)
 #define ARM_SHIFT(in, shift, out, size) arm_shift_q31(in, shift, out, size)
+#define ARM_FILL(value, out, size)		arm_fill_q31(value, out, size)
+#define ARM_ADD(in1, in2, out, size)	arm_add_q31(in1, in2, out, size)
 
 #else
 
@@ -29,6 +31,8 @@
 #define ARM_RFFT_INIT(rfftInstancePtr, size) arm_rfft_init_q15(rfftInstancePtr, size, 0, 1)
 #define ARM_RFFT(instance, in, out)     arm_rfft_q15(instance, in, out)
 #define ARM_SHIFT(in, shift, out, size) arm_shift_q15(in, shift, out, size)
+#define ARM_FILL(value, out, size)		arm_fill_q15(value, out, size)
+#define ARM_ADD(in1, in2, out, size)	arm_add_q15(in1, in2, out, size)
 
 #endif
 

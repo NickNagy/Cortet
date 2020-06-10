@@ -25,7 +25,6 @@
 
 /* USER CODE END Includes */
 extern DMA_HandleTypeDef hdma_spi2_rx;
-
 extern DMA_HandleTypeDef hdma_spi3_tx;
 
 /* Private typedef -----------------------------------------------------------*/

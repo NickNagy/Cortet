@@ -32,9 +32,9 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "dsp.h"
-#include "audio_display.h"
-#include "i2s_audio_settings.h"
+#include "../Inc/dsp.h"
+#include "../Inc/audio_display.h"
+#include "../Inc/i2s_audio_settings.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

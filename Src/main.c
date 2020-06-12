@@ -41,9 +41,9 @@ ARM_RFFT_INSTANCE        leftRFFTInstance, rightRFFTInstance;
 ARM_CFFT_RADIX4_INSTANCE leftCFFTInstance, rightCFFTInstance;
 
 // for DMA
-uint16_t rxBuf[AUDIO_BUFFER_LENGTH];
-uint16_t txBuf[AUDIO_BUFFER_LENGTH];
-AUDIO_BUFFER_T rxBufCopy[AUDIO_BUFFER_LENGTH];
+uint16_t rxBuf[AUDIO_BUFFER_16BIT_LENGTH];//AUDIO_BUFFER_16BIT_LENGTH];
+uint16_t txBuf[AUDIO_BUFFER_16BIT_LENGTH];//AUDIO_BUFFER_16BIT_LENGTH];
+AUDIO_BUFFER_T rxBufCopy[AUDIO_BUFFER_16BIT_LENGTH];
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
@@ -78,7 +78,7 @@ int main(void)
   MX_I2S3_Init();
   MX_I2S2_Init();
 
-  animationTimer_Init();
+  //animationTimer_Init();
 
   HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_RESET);
   HAL_Delay(10);
@@ -368,26 +368,30 @@ extern void TIM2_IRQHandler() {
 
 void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
 	// only want to traverse half the length, but also the buffers are 8b
-	ARM_COPY((Q*)&rxBuf, (Q*)&txBuf, AUDIO_BUFFER_LENGTH>>1);
-	/*for (int i = 0; i < AUDIO_BUFFER_LENGTH>>1; i++) {
-		txBuf[i] = rxBuf[i];
-	}*/
+	//ARM_COPY((Q*)&rxBuf, (Q*)&txBuf, AUDIO_BUFFER_LENGTH>>1);
+	//for (int i = 0; i < AUDIO_BUFFER_16BIT_LENGTH>>1; i++) {
+	//	txBuf[i] = rxBuf[i];
+	//}
 }
 
 void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
-	// TODO: IIR
+	for (int i = 0; i < AUDIO_BUFFER_16BIT_LENGTH>>1; i++) {
+		txBuf[i] = i;
+	}
 }
 
 void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s) {
 	// only want to traverse half the lenght, but also the buffers are 8b
-	ARM_COPY((Q*)&rxBuf[AUDIO_BUFFER_LENGTH>>1], (Q*)&txBuf[AUDIO_BUFFER_LENGTH>>1], AUDIO_BUFFER_LENGTH>>1);
-	/*for (int i = AUDIO_BUFFER_LENGTH>>1; i < AUDIO_BUFFER_LENGTH; i++) {
-		txBuf[i] = rxBuf[i];
-	}*/
+	//ARM_COPY((Q*)&rxBuf[AUDIO_BUFFER_LENGTH>>1], (Q*)&txBuf[AUDIO_BUFFER_LENGTH>>1], AUDIO_BUFFER_LENGTH>>1);
+	//for (int i = AUDIO_BUFFER_16BIT_LENGTH>>1; i < AUDIO_BUFFER_16BIT_LENGTH; i++) {
+	//	txBuf[i] = rxBuf[i];
+	//}
 }
 
 void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s) {
-	// TODO:
+	for (int i = AUDIO_BUFFER_16BIT_LENGTH>>1; i < AUDIO_BUFFER_16BIT_LENGTH; i++) {
+		txBuf[i] = i; //rxBuf[i];
+	}
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim) {

@@ -41,9 +41,9 @@ ARM_RFFT_INSTANCE        leftRFFTInstance, rightRFFTInstance;
 ARM_CFFT_RADIX4_INSTANCE leftCFFTInstance, rightCFFTInstance;
 
 // for DMA
-uint16_t rxBuf[AUDIO_BUFFER_16BIT_LENGTH];//AUDIO_BUFFER_16BIT_LENGTH];
-uint16_t txBuf[AUDIO_BUFFER_16BIT_LENGTH];//AUDIO_BUFFER_16BIT_LENGTH];
-AUDIO_BUFFER_T rxBufCopy[AUDIO_BUFFER_16BIT_LENGTH];
+uint16_t rxBuf[8];//AUDIO_BUFFER_16BIT_LENGTH];
+uint16_t txBuf[8];//AUDIO_BUFFER_16BIT_LENGTH];
+//AUDIO_BUFFER_T rxBufCopy[AUDIO_BUFFER_16BIT_LENGTH];
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
@@ -88,25 +88,15 @@ int main(void)
   ILI9341_setRotation(SCREEN_ORIENTATION);
   ILI9341_Fill(BACKGROUND_COLOR);
 
-  HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)&txBuf, AUDIO_BUFFER_16BIT_LENGTH);
-  HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)&rxBuf, AUDIO_BUFFER_16BIT_LENGTH);
-
-  // left channel config
-  leftChannelPlot.DataColor = COLOR_GREEN;
-  leftChannelPlot.Length = AUDIO_BUFFER_LENGTH >> 1;
-  leftChannelWindow.Plot = &leftChannelPlot;
-  leftChannelWindow.BackgroundColor = COLOR_BLACK;
-  leftChannelWindow.BorderColor = COLOR_RED;
-
-  // right channel config
-  rightChannelPlot.DataColor = COLOR_YELLOW;
-  rightChannelPlot.Length = AUDIO_BUFFER_LENGTH >> 1;
-  rightChannelWindow.Plot = &rightChannelPlot;
-  rightChannelWindow.BackgroundColor = COLOR_BLACK;
-  rightChannelWindow.BorderColor = COLOR_ORANGE;
-
-  addWindow(&leftChannelWindow);
-  addWindow(&rightChannelWindow);
+  /* Size parameter is number of AUDIO_BUFFER_T samples to transfer/receive, NOT number of 16-bit samples
+   * as documentation suggests.
+   *
+   * This can be verified by looking through the functions themselves. For 24b or 32b audio Transmit_DMA
+   * and Receive_DMA executes a conditional left-shift operation on the given Size parameter, to represent
+   * its value in 16b data
+   *  */
+  HAL_I2S_Transmit_DMA(&hi2s3, txBuf, 4);
+  HAL_I2S_Receive_DMA(&hi2s2, rxBuf, 4);
 
   while (1)
   {
@@ -177,9 +167,9 @@ static void MX_I2S2_Init(void)
   hi2s2.Instance = SPI2;
   hi2s2.Init.Mode = I2S_MODE_MASTER_RX;
   hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
-  hi2s2.Init.DataFormat = I2S_DATAFORMAT;
+  hi2s2.Init.DataFormat = I2S_DATAFORMAT_24B;
   hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
-  hi2s2.Init.AudioFreq = I2S_SAMPLE_RATE;
+  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_96K;
   hi2s2.Init.CPOL = I2S_CPOL_LOW;
   hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
   if (HAL_I2S_Init(&hi2s2) != HAL_OK)
@@ -198,9 +188,9 @@ static void MX_I2S3_Init(void)
   hi2s3.Instance = SPI3;
   hi2s3.Init.Mode = I2S_MODE_SLAVE_TX;
   hi2s3.Init.Standard = I2S_STANDARD_PHILIPS;
-  hi2s3.Init.DataFormat = I2S_DATAFORMAT;
+  hi2s3.Init.DataFormat = I2S_DATAFORMAT_24B;
   hi2s3.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
-  hi2s3.Init.AudioFreq = I2S_SAMPLE_RATE;
+  hi2s3.Init.AudioFreq = I2S_AUDIOFREQ_96K;
   hi2s3.Init.CPOL = I2S_CPOL_LOW;
   hi2s3.Init.ClockSource = I2S_CLOCK_PLL;
   if (HAL_I2S_Init(&hi2s3) != HAL_OK)
@@ -369,29 +359,33 @@ extern void TIM2_IRQHandler() {
 void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
 	// only want to traverse half the length, but also the buffers are 8b
 	//ARM_COPY((Q*)&rxBuf, (Q*)&txBuf, AUDIO_BUFFER_LENGTH>>1);
-	//for (int i = 0; i < AUDIO_BUFFER_16BIT_LENGTH>>1; i++) {
-	//	txBuf[i] = rxBuf[i];
-	//}
+	uint32_t* txBuf32 = (uint32_t*)&txBuf;
+	uint32_t* rxBuf32 = (uint32_t*)&rxBuf;
+	for (int i = 0; i < 2; i++) {
+		txBuf32[i] = rxBuf32[i];
+	}
 }
 
 void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
-	for (int i = 0; i < AUDIO_BUFFER_16BIT_LENGTH>>1; i++) {
-		txBuf[i] = i;
-	}
+	//for (int i = 0; i < AUDIO_BUFFER_16BIT_LENGTH>>1; i++) {
+	//	txBuf[i] = i;
+	//}
 }
 
 void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s) {
 	// only want to traverse half the lenght, but also the buffers are 8b
 	//ARM_COPY((Q*)&rxBuf[AUDIO_BUFFER_LENGTH>>1], (Q*)&txBuf[AUDIO_BUFFER_LENGTH>>1], AUDIO_BUFFER_LENGTH>>1);
-	//for (int i = AUDIO_BUFFER_16BIT_LENGTH>>1; i < AUDIO_BUFFER_16BIT_LENGTH; i++) {
-	//	txBuf[i] = rxBuf[i];
-	//}
+	uint32_t* txBuf32 = (uint32_t*)&txBuf;
+	uint32_t* rxBuf32 = (uint32_t*)&rxBuf;
+	for (int i = 2; i < 4; i++) {
+		txBuf32[i] = rxBuf32[i];
+	}
 }
 
 void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s) {
-	for (int i = AUDIO_BUFFER_16BIT_LENGTH>>1; i < AUDIO_BUFFER_16BIT_LENGTH; i++) {
-		txBuf[i] = i; //rxBuf[i];
-	}
+	//for (int i = AUDIO_BUFFER_16BIT_LENGTH>>1; i < AUDIO_BUFFER_16BIT_LENGTH; i++) {
+	//	txBuf[i] = i; //rxBuf[i];
+	//}
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim) {

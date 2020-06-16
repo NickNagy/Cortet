@@ -4,8 +4,8 @@
 #include "stm32f7xx_hal.h"
 
 #define NUM_CHANNELS					 2
-#define AUDIO_DATA_SIZE                 16
-#define AUDIO_SAMPLE_RATE               44
+#define AUDIO_DATA_SIZE                 24
+#define AUDIO_SAMPLE_RATE               96
 #define AUDIO_BUFFER_SAMPLES_PER_CHANNEL 8
 
 #if AUDIO_DATA_SIZE == 24
@@ -14,7 +14,10 @@
 #define AUDIO_BUFFER_16BIT_LENGTH AUDIO_BUFFER_SAMPLES_PER_CHANNEL << (NUM_CHANNELS)
 #define AUDIO_BUFFER_LENGTH AUDIO_BUFFER_16BIT_LENGTH >> 1 // should treat length as int32
 #else
-#define I2S_DATAFORMAT I2S_DATAFORMAT_16B
+/* PMOD I2S2 codec only supports 64 SCLK/LRCLK ratios when configured in slave mode
+ * Extend 16b to 16b on 32b frame
+ *  */
+#define I2S_DATAFORMAT I2S_DATAFORMAT_16B_EXTENDED
 #define AUDIO_BUFFER_T int16_t
 #define AUDIO_BUFFER_16BIT_LENGTH AUDIO_BUFFER_SAMPLES_PER_CHANNEL << (NUM_CHANNELS - 1)
 #define AUDIO_BUFFER_LENGTH AUDIO_BUFFER_16BIT_LENGTH

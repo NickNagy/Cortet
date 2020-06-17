@@ -2,12 +2,13 @@
 #define I2S_AUDIO_SETTINGS_H
 
 #include "audio_config.h"
-#include "stm32f7xx_hal.h"//_i2s.h"
+#include "stm32f7xx_hal.h"
 
 #if AUDIO_DATA_SIZE == 24
 #define I2S_DATAFORMAT I2S_DATAFORMAT_24B
 #else
-#define I2S_DATAFORMAT I2S_DATAFORMAT_16B
+/* for PMOD I2S2 SCLK/LRCLK ratio must be 64, therefore frame must be 32 wide */
+#define I2S_DATAFORMAT I2S_DATAFORMAT_16B_EXTENDED
 #endif
 
 // TODO: extend

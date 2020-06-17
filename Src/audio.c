@@ -1,13 +1,13 @@
 #include "audio.h"
 
-DMA_HandleTypeDef hdma_spi2_rx;
+/*DMA_HandleTypeDef hdma_spi2_rx;
 DMA_HandleTypeDef hdma_spi3_tx;
-I2S_HandleTypeDef i2sRx, i2sTx;
+I2S_HandleTypeDef i2sRx, i2sTx;*/
+extern AUDIO_BUFFER_T rxBuf[AUDIO_BUFFER_LENGTH], txBuf[AUDIO_BUFFER_LENGTH];
 
-uint16_t rxBuf[AUDIO_BUFFER_16BIT_LENGTH];
-uint16_t txBuf[AUDIO_BUFFER_16BIT_LENGTH];
-static uint16_t hiddenBuf1[AUDIO_BUFFER_16BIT_LENGTH];
-static uint16_t hiddenBuf2[AUDIO_BUFFER_16BIT_LENGTH];
+/* hidden buffers b/w in and out */
+static AUDIO_BUFFER_T hiddenBuf1[AUDIO_BUFFER_LENGTH];
+static AUDIO_BUFFER_T hiddenBuf2[AUDIO_BUFFER_LENGTH];
 
 /* sramWriteCounter, sramReadCounter
  *
@@ -28,97 +28,6 @@ static uint32_t sramWriteCounter, sramReadCounter;
  *      | L tx ON | L fromSRAM ON | R tx ON | R fromSRAM ON |
  */
 static uint8_t srcdst = 0xAA; // initialize such that we have direct line-in/out for both channels (simplest case)
-
-static void MX_I2S2_Init();
-static void MX_I2S3_Init();
-
-/*
- * @brief initialize hardware for audio: DMA, FMC, NVIC, and I2S interface
- * @param  None
- * @retval None
- * */
-void audioInterfaceInit() {
-
-	ExternalSRAMSpecStruct sramExtSpec =
-	{
-			.dataSize = EXTERNAL_SRAM_DATA_SIZE,
-			.tACC = EXTERNAL_SRAM_TACC,
-			.tAS = EXTERNAL_SRAM_TAS,
-			.tWRLW = EXTERNAL_SRAM_TWRLW,
-			.tCycRead = EXTERNAL_SRAM_TCYC_READ,
-			.tCycWrite = EXTERNAL_SRAM_TCYC_WRITE,
-			.writeOnly = 0
-	};
-
-	/* DMA controller clock enable */
-	__HAL_RCC_DMA1_CLK_ENABLE();
-
-	/* DMA interrupt init */
-	/* DMA1_Stream1_IRQn interrupt configuration */
-	HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 1, 0);
-	HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
-	/* DMA1_Stream5_IRQn interrupt configuration */
-	HAL_NVIC_SetPriority(DMA1_Stream5_IRQn, 1, 0);
-    HAL_NVIC_EnableIRQ(DMA1_Stream5_IRQn);
-
-    FMCSRAMInit(&sramExtSpec, EXTERNAL_SRAM_BANK);
-
-    /* I2S */
-    /*i2sTx.Instance = SPI3;
-    i2sTx.Init.Mode = I2S_MODE_SLAVE_TX;
-    i2sTx.Init.Standard = I2S_STANDARD_PHILIPS;
-    i2sTx.Init.DataFormat = I2S_DATAFORMAT;
-    i2sTx.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
-    i2sTx.Init.AudioFreq = I2S_SAMPLE_RATE;
-    i2sTx.Init.CPOL = I2S_CPOL_LOW;
-    i2sTx.Init.ClockSource = I2S_CLOCK_PLL;
-    if (HAL_I2S_Init(&i2sTx) != HAL_OK) {
-    	I2S_Error_Handler();
-    }
-
-    i2sRx = i2sTx;
-
-    i2sRx.Instance = SPI2;
-    i2sRx.Init.Mode = I2S_MODE_MASTER_RX;
-    i2sRx.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
-    if (HAL_I2S_Init(&i2sRx) != HAL_OK) {
-    	I2S_Error_Handler();
-    }*/
-
-    MX_I2S3_Init();
-    MX_I2S2_Init();
-
-    HAL_I2S_Transmit_DMA(&i2sTx, (uint16_t*)&txBuf, AUDIO_BUFFER_16BIT_LENGTH);
-    HAL_I2S_Receive_DMA(&i2sRx, (uint16_t*)&rxBuf, AUDIO_BUFFER_16BIT_LENGTH);
-}
-
-static void MX_I2S2_Init() {
-	i2sRx.Instance = SPI2;
-	i2sRx.Init.Mode = I2S_MODE_MASTER_RX;
-	i2sRx.Init.Standard = I2S_STANDARD_PHILIPS;
-	i2sRx.Init.DataFormat = I2S_DATAFORMAT;
-	i2sRx.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
-	i2sRx.Init.AudioFreq = I2S_SAMPLE_RATE;
-	i2sRx.Init.CPOL = I2S_CPOL_LOW;
-	i2sRx.Init.ClockSource = I2S_CLOCK_PLL;
-	if (HAL_I2S_Init(&i2sRx) != HAL_OK) {
-		I2S_Error_Handler();
-	}
-}
-
-static void MX_I2S3_Init() {
-	i2sTx.Instance = SPI3;
-	i2sTx.Init.Mode = I2S_MODE_SLAVE_TX;
-	i2sTx.Init.Standard = I2S_STANDARD_PHILIPS;
-	i2sTx.Init.DataFormat = I2S_DATAFORMAT;
-	i2sTx.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
-	i2sTx.Init.AudioFreq = I2S_SAMPLE_RATE;
-	i2sTx.Init.CPOL = I2S_CPOL_LOW;
-	i2sTx.Init.ClockSource = I2S_CLOCK_PLL;
-	if (HAL_I2S_Init(&i2sTx) != HAL_OK) {
-		I2S_Error_Handler();
-	}
-}
 
 /**
   * @brief  Takes 2-channel data buffer and re-arranges data into bufferCopy such that the first half
@@ -260,38 +169,6 @@ static void txHandler(uint8_t txStartIdx, uint8_t length) {
 		singleChannelTxHandler(txStartIdx + 1, length, leftCond);
 		singleChannelTxHandler(txStartIdx, length, rightCond);
 	}
-}
-
-void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
-	/*for (int i = 0; i < AUDIO_BUFFER_LENGTH>>1; i++) {
-		txBuf[i] = rxBuf[i];
-	}*/
-	ARM_COPY((Q*)&rxBuf, (Q*)&txBuf, AUDIO_BUFFER_LENGTH>>1);
-	/* zero out first half of midBuf */
-	/*ARM_FILL(0, (Q*)&hiddenBuf1, AUDIO_BUFFER_LENGTH>>1);
-	rxHandler(0, AUDIO_BUFFER_LENGTH>>1);*/
-}
-
-void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s) {
-	/*for (int i = AUDIO_BUFFER_LENGTH>>1; i < AUDIO_BUFFER_LENGTH; i++) {
-		txBuf[i] = rxBuf[i];
-	}*/
-	ARM_COPY((Q*)&rxBuf[AUDIO_BUFFER_LENGTH>>1], (Q*)&txBuf[AUDIO_BUFFER_LENGTH>>1], AUDIO_BUFFER_LENGTH>>1);
-	/* zero out second half of midBuf */
-	/*ARM_FILL(0, (Q*)&hiddenBuf1[AUDIO_BUFFER_LENGTH>>1], AUDIO_BUFFER_LENGTH>>1);
-	rxHandler(AUDIO_BUFFER_LENGTH>>1, AUDIO_BUFFER_LENGTH>>1);*/
-}
-
-void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
-	/* zero out txBuf */
-	/*ARM_FILL(0, (Q*)&txBuf, AUDIO_BUFFER_LENGTH>>1);
-	txHandler(0, AUDIO_BUFFER_LENGTH>>1);*/
-}
-
-void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s) {
-	/* zero out txBuf */
-	/*ARM_FILL(0, (Q*)&txBuf[AUDIO_BUFFER_LENGTH>>1], AUDIO_BUFFER_LENGTH>>1);
-	txHandler(AUDIO_BUFFER_LENGTH>>1, AUDIO_BUFFER_LENGTH>>1);*/
 }
 
 

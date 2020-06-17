@@ -2,7 +2,7 @@
 #define AUDIO_CONFIG_H
 
 #define NUM_CHANNELS					 2
-#define AUDIO_DATA_SIZE                 16
+#define AUDIO_DATA_SIZE                 24
 #define AUDIO_SAMPLE_RATE               96
 #define AUDIO_BUFFER_SAMPLES_PER_CHANNEL 2
 

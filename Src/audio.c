@@ -63,6 +63,20 @@ static void combineChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T buffer
 	}
 }
 
+/* 
+* @brief  apply audio effects (based on button configurations/states) to bufferIn
+* @param  buffer: ptr to data buffer
+* 		  size: size (total number of samples) of buffer
+* @retval None
+*/
+static void applyEffects(AUDIO_BUFFER_PTR_T buffer, uint16_t size) {
+	/* skeleton code --> haven't actually configured this yet */
+	for (int i = 0; i < NUM_FX_BUTTONS; i++) {
+		if (buttons[i]->typeAndState == 3)
+			buttons[i]->effect_ptr(buffer, size);
+	}
+}
+
 static void singleChannelRxHandler(uint8_t rxStartIdx, uint8_t length, uint8_t cond) {
 	// TODO: look into CMSIS/NEON and try and find a faster way to copy every other idx of a vector
 	switch(cond) {

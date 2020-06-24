@@ -74,7 +74,6 @@ int main(void)
   MX_GPIO_Init();
 
   MX_DMA_Init();
-  MX_FMC_Init();
   MX_I2S3_Init();
   MX_I2S2_Init();
 
@@ -218,50 +217,6 @@ static void MX_DMA_Init(void)
 
 }
 
-/* FMC initialization function */
-static void MX_FMC_Init(void)
-{
-  FMC_NORSRAM_TimingTypeDef Timing = {0};
-
-  /** Perform the SRAM1 memory initialization sequence
-  */
-  hsram1.Instance = FMC_NORSRAM_DEVICE;
-  hsram1.Extended = FMC_NORSRAM_EXTENDED_DEVICE;
-  /* hsram1.Init */
-  hsram1.Init.NSBank = FMC_NORSRAM_BANK1;
-  hsram1.Init.DataAddressMux = FMC_DATA_ADDRESS_MUX_DISABLE;
-  hsram1.Init.MemoryType = FMC_MEMORY_TYPE_SRAM;
-  hsram1.Init.MemoryDataWidth = FMC_NORSRAM_MEM_BUS_WIDTH_8;
-  hsram1.Init.BurstAccessMode = FMC_BURST_ACCESS_MODE_DISABLE;
-  hsram1.Init.WaitSignalPolarity = FMC_WAIT_SIGNAL_POLARITY_LOW;
-  hsram1.Init.WaitSignalActive = FMC_WAIT_TIMING_BEFORE_WS;
-  hsram1.Init.WriteOperation = FMC_WRITE_OPERATION_ENABLE;
-  hsram1.Init.WaitSignal = FMC_WAIT_SIGNAL_DISABLE;
-  hsram1.Init.ExtendedMode = FMC_EXTENDED_MODE_DISABLE;
-  hsram1.Init.AsynchronousWait = FMC_ASYNCHRONOUS_WAIT_DISABLE;
-  hsram1.Init.WriteBurst = FMC_WRITE_BURST_DISABLE;
-  hsram1.Init.ContinuousClock = FMC_CONTINUOUS_CLOCK_SYNC_ONLY;
-  hsram1.Init.WriteFifo = FMC_WRITE_FIFO_DISABLE;
-  hsram1.Init.PageSize = FMC_PAGE_SIZE_NONE;
-  /* Timing */
-  Timing.AddressSetupTime = 6;
-  Timing.AddressHoldTime = 0;
-  Timing.DataSetupTime = 6;
-  Timing.BusTurnAroundDuration = 0;
-  Timing.CLKDivision = 16;
-  Timing.DataLatency = 17;
-  Timing.AccessMode = FMC_ACCESS_MODE_A;
-  /* ExtTiming */
-
-  if (HAL_SRAM_Init(&hsram1, &Timing, NULL) != HAL_OK)
-  {
-    Error_Handler( );
-  }
-
-  /* Enable swapping to use 0xCxxxxxxx address space */
-  HAL_EnableFMCMemorySwapping();
-}
-
 /**
   * @brief GPIO Initialization Function
   * @param None
@@ -270,6 +225,7 @@ static void MX_FMC_Init(void)
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
+  EXTI_ConfigTypeDef EXTI_ConfigStruct = {0};
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
@@ -295,6 +251,20 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(TEST_LED_GPIO_Port, &GPIO_InitStruct);
+
+  /* ***************** BUTTON INTERRUPT GPIOs ************************* */
+
+  /* only set this once, as each button should be configured the same way */
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+
+  /* using PE2, PE3, PE4 for now, so can set all three pins */
+  GPIO_InitStruct.Pin = GPIO_PIN_2;// | GPIO_PIN_3 | GPIO_PIN_4;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
+  /* should be very high priority, want system to handle button presses asap! */
+  HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
+
+  HAL_NVIC_EnableIRQ(EXTI2_IRQn);
 }
 
 /* Initializes TIM2, the time base for LCD frame updates for animations (24fps) */
@@ -317,38 +287,29 @@ static void animationTimer_Init() {
 	HAL_NVIC_EnableIRQ(TIM2_IRQn);
 }
 
-/**
-  * @brief  Takes 2-channel data buffer and re-arranges data into bufferCopy such that the first half
-  * 		is contiguous left-channel data, and second half is right-channel data
-  * @param  buffer: ptr to original 2-channel data buffer, every other idx is a different channel
-  * 		bufferCopy: ptr to split buffer, first half is left channel, second half is right channel
-  * 		size: size (total number of samples) of buffer
-  * @retval None
-  */
-static void splitChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size) {
-	uint16_t rightStartIdx = size>>1;
-	for (int i = 0; i < size>>1; i++) {
-		int iTimesTwo = i<<1;
-		*(bufferCopy + i) = *(buffer + iTimesTwo);
-		*(bufferCopy + i + rightStartIdx)= *(buffer + iTimesTwo + 1);
-	}
+/* ** Button IRQ Handler(s) ** 
+*/
+void EXTI2_IRQHandler() {
+  if(__HAL_GPIO_EXTI_GET_IT(EXTI_LINE_2) != RESET)
+  {
+    HAL_GPIO_TogglePin(TEST_LED_GPIO_Port, TEST_LED_Pin);
+    __HAL_GPIO_EXTI_CLEAR_IT(EXTI_LINE_2);
+    //HAL_GPIO_EXTI_Callback(EXTI_LINE_2);
+  }
 }
 
-/**
- * @brief  Takes a buffer where first half is left-channel data and second half is right-channel data,
- * 		   and rearranges such that channel data alternates by idx
- * @param  buffer: ptr to original {left-channel data, right-channel data} buffer
- * 		   bufferCopy: ptr to 2-channel data buffer, where every other idx is a different channel
- * 		   size: size (total number of samples) of buffer
- * @retval None
- */
-static void combineChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size) {
-	uint16_t rightStartIdx = size>>1;
-	for (int i = 0; i < size>>1; i++) {
-		int iTimesTwo = i << 1;
-		*(bufferCopy + iTimesTwo) = *(buffer + i);
-		*(bufferCopy + iTimesTwo + 1) = *(bufferCopy + i + rightStartIdx);
-	}
+void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
+	ARM_COPY((Q*)&rxBuf, (Q*)&txBuf, AUDIO_BUFFER_LENGTH>>1);
+}
+
+void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
+}
+
+void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s) {
+	ARM_COPY((Q*)&rxBuf[AUDIO_BUFFER_LENGTH>>1], (Q*)&txBuf[AUDIO_BUFFER_LENGTH>>1], AUDIO_BUFFER_LENGTH>>1);
+}
+
+void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s) {
 }
 
 /* TIM2 IRQ Handler */
@@ -356,36 +317,8 @@ extern void TIM2_IRQHandler() {
 	HAL_TIM_IRQHandler(&animationTimer);
 }
 
-void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
-	ARM_COPY((Q*)&rxBuf, (Q*)&txBuf, AUDIO_BUFFER_LENGTH>>1);
-	/*for (int i = 0; i < AUDIO_BUFFER_LENGTH>>1; i++) {
-		txBuf[i] = rxBuf[i];
-	}*/
-}
-
-void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
-	//for (int i = 0; i < AUDIO_BUFFER_16BIT_LENGTH>>1; i++) {
-	//	txBuf[i] = i;
-	//}
-}
-
-void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s) {
-	ARM_COPY((Q*)&rxBuf[AUDIO_BUFFER_LENGTH>>1], (Q*)&txBuf[AUDIO_BUFFER_LENGTH>>1], AUDIO_BUFFER_LENGTH>>1);
-	/*for (int i = AUDIO_BUFFER_LENGTH>>1; i < AUDIO_BUFFER_LENGTH; i++) {
-		txBuf[i] = rxBuf[i];
-	}*/
-}
-
-void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s) {
-	//for (int i = AUDIO_BUFFER_16BIT_LENGTH>>1; i < AUDIO_BUFFER_16BIT_LENGTH; i++) {
-	//	txBuf[i] = i; //rxBuf[i];
-	//}
-}
-
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim) {
-	HAL_GPIO_TogglePin(TEST_LED_GPIO_Port, TEST_LED_Pin);
-	/*AUDIO_BUFFER_PTR_T rxBufCopyPtr = (AUDIO_BUFFER_PTR_T)&rxBufCopy;
-	splitChannels((AUDIO_BUFFER_PTR_T)&rxBuf, rxBufCopyPtr, AUDIO_BUFFER_LENGTH);
+	/*splitChannels((AUDIO_BUFFER_PTR_T)&rxBuf, rxBufCopyPtr, AUDIO_BUFFER_LENGTH);
 	refreshPlot(&leftChannelWindow, rxBufCopyPtr);
 	refreshPlot(&leftChannelWindow, rxBufCopyPtr + (AUDIO_BUFFER_LENGTH>>1));*/
 }

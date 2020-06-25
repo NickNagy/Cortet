@@ -9,6 +9,75 @@ void displayInterfaceInit() {
 	ILI9341_Fill(BACKGROUND_COLOR);
 }
 
+void highlightDisplayButton(DisplayButtonStruct * displayButton) {
+	uint16_t x0, y0, x1, y1, backgroundColor, textColor;
+	x0 = displayButton->X;
+	x1 = x0 + displayButton->Width;
+	y0 = displayButton->Y;
+	y1 = y0 + displayButton->Height;
+	if (displayButton -> Status & 2) { /* if button is highlighted */
+		backgroundColor = INVERT_COLOR(displayButton->BackgroundColor);
+		textColor = INVERT_COLOR(displayButton->BorderAndTextColor);
+	} else {
+		backgroundColor = displayButton->BackgroundColor;
+		textColor = displayButton->BorderAndTextColor;
+	}
+#if RECTANGULAR_DISPLAY_BUTTONS
+	ILI9341_Fill_Rect(x0, y0, x1, y1, backgroundColor);
+	ILI9341_drawRect(x0, y0, x1, y1, textColor);
+#else
+	drawDisplayButtonBorder(x0, y0, x1, y1, backgroundColor);
+#endif
+	ILI9341_printText(displayButton->Text, x0 + displayButton->TextXOffset, y0 + displayButton->TextYOffset, textColor, backgroundColor, displayButton->FontSize);
+	displayButton -> Status ^= 2; /* swap state of button for next time it is drawn */
+}
+
+static void setDisplayButtonTextParams(DisplayButtonStruct * displayButton) {
+	/* determine length of text, to know how to set font size */
+	uint8_t fontSize, textLength;
+	char * textPtr = displayButton->Text;
+	textLength = 0;
+	while(*textPtr!=0) {
+		textLength++;
+		textPtr++;
+	}
+	/* determine text size and offset based on button size */
+	fontSize = 1;
+	while ((fontSize+1) * textLength * MIN_BUTTON_WIDTH < displayButton->Width && (fontSize+1) * MIN_BUTTON_HEIGHT < displayButton->Height) {
+		fontSize++;
+	}
+	displayButton->FontSize = fontSize;
+	/* configure offset of text based on relative size of button */
+	displayButton->TextXOffset = (displayButton->Width - (displayButton->FontSize * textLength * MIN_BUTTON_WIDTH)) >> 1;
+	displayButton->TextYOffset = (displayButton->Height - (displayButton->FontSize * MIN_BUTTON_HEIGHT)) >> 1;
+}
+
+void drawDisplayButton(DisplayButtonStruct * displayButton) {
+	uint16_t x0, y0, x1, y1;
+	if (!(displayButton->Status & 1)) { /* if button hasn't been initialized yet, initialize it! */
+		/* update width and height of button if necessary */
+		displayButton->Width = (displayButton->Width < MIN_BUTTON_WIDTH) ? MIN_BUTTON_WIDTH : displayButton->Width;
+		displayButton->Height = (displayButton->Height < MIN_BUTTON_HEIGHT) ? MIN_BUTTON_HEIGHT : displayButton->Height;
+		/* set font size */
+		setDisplayButtonTextParams(displayButton);
+		/* update status to show button was initialized */
+		displayButton->Status |= 1;
+	}
+	/* draw and fill rectangle */
+	x0 = displayButton -> X;
+	x1 = x0 + displayButton -> Width;
+	y0 = displayButton -> Y;
+	y1 = y0 + displayButton -> Height;
+#if RECTANGULAR_DISPLAY_BUTTONS
+	ILI9341_Fill_Rect(x0, y0, x1, y1, displayButton->BackgroundColor);
+	ILI9341_drawRect(x0, y0, x1, y1, displayButton->BorderAndTextColor);
+#else
+	drawDisplayButtonBorder(x0, y0, x1, y1, displayButton->BackgroundColor);
+#endif
+	/* print text */
+	ILI9341_printText(displayButton->Text, x0 + displayButton->TextXOffset, y0 + displayButton->TextYOffset, displayButton->BorderAndTextColor, displayButton->BackgroundColor, displayButton->FontSize);
+}
+
 void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height) {
 	int i;
 	float hStep, vStep;

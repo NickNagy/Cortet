@@ -1,6 +1,7 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
+#include "stm32f7xx_hal.h"
 #include "MA_ILI9341.h"
 #include "audio_config.h"
 #include <stdio.h>
@@ -21,6 +22,10 @@
 
 #define MAX_WINDOWS 4
 
+/* values chosen by the manner in which the ILI9341 draws characters --> want any char to be able to fit within the button borders */
+#define MIN_BUTTON_WIDTH  6
+#define MIN_BUTTON_HEIGHT 8
+
 typedef struct DisplayButtonStruct {
 	uint16_t X;
 	uint16_t Y;
@@ -40,20 +45,26 @@ typedef struct DisplayButtonStruct {
 	uint8_t  FontSize;
 	char * Text;
 } DisplayButtonStruct;
-
-/* values chosen by the manner in which the ILI9341 draws characters --> want any char to be able to fit within the button borders */
-#define MIN_BUTTON_WIDTH  6
-#define MIN_BUTTON_HEIGHT 8
-
-//#define DEFAULT_DISPLAY_BUTTON_STRUCT {.Width = 0}
-//#define INIT_DISPLAY_BUTTON_STRUCT(x) x = DEFAULT_DISPLAY_BUTTON_STRUCT;
+#define INIT_DISPLAY_BUTTON_STRUCT(x) x = {0, 0, MIN_BUTTON_WIDTH, MIN_BUTTON_HEIGHT, 0, 0, 0, COLOR_WHITE, 0, 1, ""}
 
 /* set true if LCD buttons are plain, simple rectangle shape, o/w their shape is defined by drawDisplayButtonBorder() */
 #define RECTANGULAR_DISPLAY_BUTTONS 1
 
 typedef struct DisplayMenuStruct {
-	DisplayButtonStruct * buttons;
+	DisplayButtonStruct * Buttons;
+	uint16_t SelectionCounter;
+	uint16_t BackgroundColor;
+	uint16_t BorderAndTextColor;
+	uint16_t ButtonHeight;
+	uint16_t ButtonWidth;
+	uint8_t ButtonAlignment; /* 0 = right, 1 = center, 2 = left */
+	uint8_t NumButtons;
 } DisplayMenuStruct;
+#define INIT_DISPLAY_MENU_STRUCT(x) x = {0, 0, 0, 0, 0, 0, 0, 0}
+
+#define DISPLAY_BUTTON_LEFT_ALIGNMENT   2
+#define DISPLAY_BUTTON_CENTER_ALIGNMENT 1
+#define DISPLAY_BUTTON_RIGHT_ALIGNMENT  0
 
 typedef struct PlotStruct{
 	AUDIO_BUFFER_PTR_T Data;
@@ -62,11 +73,9 @@ typedef struct PlotStruct{
 	uint16_t BackgroundColor;
 	uint16_t DataColor;
 	uint16_t TextColor;
-	char ** PlotTitle;
-}PlotStruct;
-
-#define DEFAULT_PLOT_STRUCT {.Data = 0, .Length = 0, .AxisColor = 0, .BackgroundColor = 0, .DataColor = 0, .TextColor = 0, .PlotTitle = 0}
-#define INIT_PLOT_STRUCT(x) x = DEFAULT_PLOT_STRUCT;
+	char * PlotTitle;
+} PlotStruct;
+#define INIT_PLOT_STRUCT(x) x = {0, 0, 0, 0, 0, 0, 0, ""}
 
 typedef struct WindowStruct {
 	PlotStruct * Plot;
@@ -77,31 +86,29 @@ typedef struct WindowStruct {
 	uint16_t BackgroundColor;
 	uint16_t BorderColor;
 	uint16_t TextColor;
-	char ** WindowTitle;
-}WindowStruct;
-
-#define DEFAULT_WINDOW_STRUCT {.Plot = 0, .X = 0, .Y = 0, .Width = 0, .Height = 0, .BackgroundColor = 0, .BorderColor = 0, .TextColor = 0, .WindowTitle = ""}
-#define INIT_WINDOW_STRUCT(x) x = DEFAULT_WINDOW_STRUCT;
+	char * WindowTitle;
+} WindowStruct;
+#define INIT_WINDOW_STRUCT(x) x = {0, 0, 0, 0, 0, 0, 0, 0, ""}
 
 typedef struct WindowLinkedListNode {
 	WindowStruct * Window;
 	struct WindowLinkedListNode * Next;
 } WindowLinkedListNode;
-
-#define DEFAULT_WINDOW_LINKED_LIST_STRUCT {.Next = 0, .Window = 0}
-#define INIT_WINDOW_LINKED_LIST_STRUCT(x) x = DEFAULT_WINDOW_LINKED_LIST_STRUCT;
-
-void displayInterfaceInit();
+#define INIT_WINDOW_LINKED_LIST_STRUCT(x) x = {0,0}
 
 #define INVERT_COLOR(color) 0xFFFF - color
-static uint16_t invertColor(uint16_t originalColor);
-
-static void drawDisplayButtonBorder(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color);
-void highlightDisplayButton(DisplayButtonStruct * displayButton);
 
 static void setDisplayButtonTextParams(DisplayButtonStruct * displayButton);
-
+void verifyAndInitializeDisplayButton(DisplayButtonStruct * displayButton);
+void assignButtonsToMenu(DisplayButtonStruct * displayButtons, uint8_t numButtons, DisplayMenuStruct * displayMenu);
+static void drawDisplayButtonBorder(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color);
+static void highlightDisplayButton(DisplayButtonStruct * displayButton);
+static void incrementDisplayMenuSelection(DisplayMenuStruct * displayMenu);
+static void decrementDisplayMenuSelection(DisplayMenuStruct * displayMenu);
+void incrementCurrentDisplayMenuSelection();
+void decrementCurrentDisplayMenuSelection();
 void drawDisplayButton(DisplayButtonStruct * displayButton);
+void drawDisplayMenu(DisplayMenuStruct * displayMenu);
 void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height);
 void displayPlot(WindowStruct * w);
 void refreshPlot(WindowStruct * w, AUDIO_BUFFER_PTR_T newData);
@@ -109,5 +116,7 @@ static void refreshDisplays();
 void addWindow(WindowStruct * w);
 void deleteWindow(uint8_t idx);
 void swapWindows(uint8_t idx1, uint8_t idx2);
+
+void displayInterfaceInit();
 
 #endif

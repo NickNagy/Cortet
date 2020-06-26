@@ -30,12 +30,6 @@ DMA_HandleTypeDef hdma_spi3_tx;
 SRAM_HandleTypeDef hsram1;
 TIM_HandleTypeDef animationTimer;
 
-// for audio_display
-PlotStruct leftChannelPlot = DEFAULT_PLOT_STRUCT;
-PlotStruct rightChannelPlot = DEFAULT_PLOT_STRUCT;
-WindowStruct leftChannelWindow = DEFAULT_WINDOW_STRUCT;
-WindowStruct rightChannelWindow = DEFAULT_WINDOW_STRUCT;
-
 // for FFT
 ARM_RFFT_INSTANCE        leftRFFTInstance, rightRFFTInstance;
 ARM_CFFT_RADIX4_INSTANCE leftCFFTInstance, rightCFFTInstance;
@@ -86,10 +80,7 @@ int main(void)
   HAL_Delay(10);
   HAL_GPIO_WritePin(FMC_RST_GPIO_Port, FMC_RST_Pin, GPIO_PIN_SET);
 
-  displayInterfaceInit(); /* <-- this should do the same as the commented code below */
-  /*ILI9341_Init();
-  ILI9341_setRotation(SCREEN_ORIENTATION);
-  ILI9341_Fill(BACKGROUND_COLOR);*/
+  displayInterfaceInit();
 
   /* Size parameter is number of AUDIO_BUFFER_T samples to transfer/receive, NOT number of 16-bit samples
    * as documentation suggests.
@@ -100,32 +91,6 @@ int main(void)
    *  */
   HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)&txBuf, AUDIO_BUFFER_LENGTH);
   HAL_I2S_Receive_DMA(&hi2s2, (uint16_t*)&rxBuf, AUDIO_BUFFER_LENGTH);
-
-  /* testing some menu options for LCD */
-
-  //INIT_DISPLAY_BUTTON_STRUCT(b1);
-  //INIT_DISPLAY_BUTTON_STRUCT(b2);
-
-  b1.Status = 0;
-  b1.X = 0;
-  b1.Y = 0;
-  b1.Width = 80;
-  b1.Height = 30;
-  b1.Text = "Hello";
-  b1.BorderAndTextColor = COLOR_RED;
-  b1.BackgroundColor = COLOR_BLACK;
-
-  b2.Status = 0;
-  b2.Width = 100;
-  b2.Height = 40;
-  b2.X = (WIDTH/2) - b2.Width/2;
-  b2.Y = HEIGHT / 2;
-  b2.Text = "World!";
-  b2.BorderAndTextColor = COLOR_YELLOW;
-  b2.BackgroundColor = COLOR_DGREEN;
-
-  drawDisplayButton(&b1);
-  drawDisplayButton(&b2);
 
   while (1)
   {
@@ -323,7 +288,7 @@ void EXTI2_IRQHandler() {
   if(__HAL_GPIO_EXTI_GET_IT(EXTI_LINE_2) != RESET)
   {
     HAL_GPIO_TogglePin(TEST_LED_GPIO_Port, TEST_LED_Pin);
-    highlightDisplayButton(&b1);
+    incrementCurrentDisplayMenuSelection();
     __HAL_GPIO_EXTI_CLEAR_IT(EXTI_LINE_2);
     //HAL_GPIO_EXTI_Callback(EXTI_LINE_2);
   }

@@ -2,14 +2,137 @@
 
 static volatile WindowLinkedListNode * windowList = 0; // volatile in the hopes I can track it in debugger
 static volatile uint8_t numWindows = 0;
+static DisplayMenuStruct menu = {0, 0, 0, 0, 0, 0, 0, 0};
+static DisplayMenuStruct * currentDisplayMenuPtr = 0; // points to whatever menu is currently on the screen
 
 void displayInterfaceInit() {
 	ILI9341_Init();
 	ILI9341_setRotation(SCREEN_ORIENTATION);
 	ILI9341_Fill(BACKGROUND_COLOR);
+
+	HAL_Delay(100);
+
+	/* initialize menus */
+	DisplayButtonStruct * menuButtons, * helloButton, * worldButton;
+	menuButtons = (DisplayButtonStruct*)malloc(2*sizeof(DisplayButtonStruct));
+	helloButton = menuButtons;
+	worldButton = menuButtons + 1;
+	currentDisplayMenuPtr = &menu;
+
+	helloButton->Text = "Hello";
+	worldButton->Text = "World!";
+
+	menu.ButtonWidth = 100;
+	menu.BackgroundColor = COLOR_BLACK;
+	menu.BorderAndTextColor = COLOR_WHITE;
+	menu.ButtonAlignment = DISPLAY_BUTTON_CENTER_ALIGNMENT;
+	assignButtonsToMenu(menuButtons, 2, &menu);
+
+	drawDisplayMenu(&menu);
 }
 
-void highlightDisplayButton(DisplayButtonStruct * displayButton) {
+static void setDisplayButtonTextParams(DisplayButtonStruct * displayButton) {
+	/* determine length of text, to know how to set font size */
+	uint16_t displayTextHeight, displayTextWidth;
+	uint8_t fontSize, textLength;
+	char * textPtr = displayButton->Text;
+	textLength = 0;
+	while(*textPtr!=0) {
+		textLength++;
+		textPtr++;
+	}
+	/* determine text size and offset based on button size */
+	fontSize = 1;
+	while ((fontSize+1) * textLength * MIN_BUTTON_WIDTH < displayButton->Width && (fontSize+1) * MIN_BUTTON_HEIGHT < displayButton->Height) {
+		fontSize++;
+	}
+	displayButton->FontSize = fontSize;
+	/* if width and height of button don't fit text even at font size 1, update their dimensions */
+	displayTextHeight = fontSize * MIN_BUTTON_HEIGHT;
+	displayTextWidth = fontSize * textLength * MIN_BUTTON_WIDTH;
+	displayButton->Width = displayButton->Width < displayTextWidth ? displayTextWidth : displayButton -> Width;
+	displayButton->Height = displayButton->Height < displayTextHeight ? displayTextHeight : displayButton -> Height;
+	/* configure offset of text based on relative size of button */
+	displayButton->TextXOffset = (displayButton->Width - displayTextWidth) >> 1;
+	displayButton->TextYOffset = (displayButton->Height - displayTextHeight) >> 1;
+}
+
+void verifyAndInitializeDisplayButton(DisplayButtonStruct * displayButton) {
+	/* update width and height of button if necessary */
+	displayButton->Width = (displayButton->Width < MIN_BUTTON_WIDTH) ? MIN_BUTTON_WIDTH : displayButton->Width;
+	displayButton->Height = (displayButton->Height < MIN_BUTTON_HEIGHT) ? MIN_BUTTON_HEIGHT : displayButton->Height;
+	/* set font size */
+	setDisplayButtonTextParams(displayButton);
+	/* update status to show button was initialized */
+	displayButton->Status |= 1;
+}
+
+/* WARNING: will override individual button settings to match the menu settings */
+void assignButtonsToMenu(DisplayButtonStruct * displayButtons, uint8_t numButtons, DisplayMenuStruct * displayMenu) {
+	DisplayButtonStruct * buttonPtr;
+	uint16_t buttonX;
+	displayMenu->Buttons = displayButtons;
+	displayMenu->NumButtons = numButtons;
+	buttonPtr = displayMenu->Buttons;
+	/* assure buttons don't exceed the dimensions of the screen */
+	displayMenu->ButtonWidth = (displayMenu->ButtonWidth > WIDTH) ? WIDTH : displayMenu -> ButtonWidth;
+	displayMenu->ButtonHeight = ((displayMenu->ButtonHeight + 1) * numButtons > HEIGHT) ? HEIGHT/(numButtons+1) : displayMenu->ButtonHeight;
+	/* determine x coordinate for buttons based on menu alignment setting */
+	switch(displayMenu->ButtonAlignment) {
+		case 0: /* right-justified */
+			buttonX = WIDTH - displayMenu->ButtonWidth;
+			break;
+		case 1: /* centered */
+			buttonX = (WIDTH - displayMenu->ButtonWidth) >> 1;
+			break;
+		default: /* left-justified */
+			buttonX = 0;
+	}
+	for (int i = 0; i < numButtons; i++) {
+		buttonPtr->BackgroundColor = displayMenu->BackgroundColor;
+		buttonPtr->BorderAndTextColor = displayMenu->BorderAndTextColor;
+		buttonPtr->Width = displayMenu->ButtonWidth;
+		buttonPtr->Height = displayMenu->ButtonHeight;
+		buttonPtr->X = buttonX;
+		/* initialize button, this will save time by skipping checks in other functions */
+		verifyAndInitializeDisplayButton(buttonPtr);
+		/* TODO: figure out update logic with menu button dimensions */
+		buttonPtr->Y = i*(buttonPtr->Height + 1);
+		buttonPtr++;
+	}
+}
+
+void drawDisplayButton(DisplayButtonStruct * displayButton) {
+	uint16_t x0, y0, x1, y1;
+	if (!(displayButton->Status & 1)) { /* if button hasn't been initialized yet, initialize it! */
+		verifyAndInitializeDisplayButton(displayButton);
+	}
+	/* draw and fill rectangle */
+	x0 = displayButton -> X;
+	x1 = x0 + displayButton -> Width;
+	y0 = displayButton -> Y;
+	y1 = y0 + displayButton -> Height;
+#if RECTANGULAR_DISPLAY_BUTTONS
+	ILI9341_Fill_Rect(x0, y0, x1, y1, displayButton->BackgroundColor);
+	ILI9341_drawRect(x0, y0, x1, y1, displayButton->BorderAndTextColor);
+#else
+	drawDisplayButtonBorder(x0, y0, x1, y1, displayButton->BackgroundColor);
+#endif
+	/* print text */
+	ILI9341_printText(displayButton->Text, x0 + displayButton->TextXOffset, y0 + displayButton->TextYOffset, displayButton->BorderAndTextColor, displayButton->BackgroundColor, displayButton->FontSize);
+}
+
+void drawDisplayMenu(DisplayMenuStruct * displayMenu) {
+	DisplayButtonStruct * buttonPtr = displayMenu -> Buttons;
+	for (int i = 0; i < displayMenu -> NumButtons; i++) {
+		drawDisplayButton(buttonPtr);
+		buttonPtr++;
+	}
+	/* highlight first button @ initialization */
+	highlightDisplayButton(displayMenu->Buttons);
+}
+
+static void highlightDisplayButton(DisplayButtonStruct * displayButton) {
 	uint16_t x0, y0, x1, y1, backgroundColor, textColor;
 	x0 = displayButton->X;
 	x1 = x0 + displayButton->Width;
@@ -32,50 +155,36 @@ void highlightDisplayButton(DisplayButtonStruct * displayButton) {
 	displayButton -> Status ^= 2; /* swap state of button for next time it is drawn */
 }
 
-static void setDisplayButtonTextParams(DisplayButtonStruct * displayButton) {
-	/* determine length of text, to know how to set font size */
-	uint8_t fontSize, textLength;
-	char * textPtr = displayButton->Text;
-	textLength = 0;
-	while(*textPtr!=0) {
-		textLength++;
-		textPtr++;
-	}
-	/* determine text size and offset based on button size */
-	fontSize = 1;
-	while ((fontSize+1) * textLength * MIN_BUTTON_WIDTH < displayButton->Width && (fontSize+1) * MIN_BUTTON_HEIGHT < displayButton->Height) {
-		fontSize++;
-	}
-	displayButton->FontSize = fontSize;
-	/* configure offset of text based on relative size of button */
-	displayButton->TextXOffset = (displayButton->Width - (displayButton->FontSize * textLength * MIN_BUTTON_WIDTH)) >> 1;
-	displayButton->TextYOffset = (displayButton->Height - (displayButton->FontSize * MIN_BUTTON_HEIGHT)) >> 1;
+static void incrementDisplayMenuSelection(DisplayMenuStruct * displayMenu) {
+	uint8_t currentIdx, nextIdx;
+	currentIdx = displayMenu -> SelectionCounter;
+	nextIdx = (currentIdx + 1) % displayMenu -> NumButtons;
+	/* un-highlight current button */
+	highlightDisplayButton(displayMenu->Buttons + currentIdx);
+	/* highlight new button */
+	highlightDisplayButton(displayMenu->Buttons + nextIdx);
+	/* update selection counter */
+	displayMenu->SelectionCounter = nextIdx;
 }
 
-void drawDisplayButton(DisplayButtonStruct * displayButton) {
-	uint16_t x0, y0, x1, y1;
-	if (!(displayButton->Status & 1)) { /* if button hasn't been initialized yet, initialize it! */
-		/* update width and height of button if necessary */
-		displayButton->Width = (displayButton->Width < MIN_BUTTON_WIDTH) ? MIN_BUTTON_WIDTH : displayButton->Width;
-		displayButton->Height = (displayButton->Height < MIN_BUTTON_HEIGHT) ? MIN_BUTTON_HEIGHT : displayButton->Height;
-		/* set font size */
-		setDisplayButtonTextParams(displayButton);
-		/* update status to show button was initialized */
-		displayButton->Status |= 1;
-	}
-	/* draw and fill rectangle */
-	x0 = displayButton -> X;
-	x1 = x0 + displayButton -> Width;
-	y0 = displayButton -> Y;
-	y1 = y0 + displayButton -> Height;
-#if RECTANGULAR_DISPLAY_BUTTONS
-	ILI9341_Fill_Rect(x0, y0, x1, y1, displayButton->BackgroundColor);
-	ILI9341_drawRect(x0, y0, x1, y1, displayButton->BorderAndTextColor);
-#else
-	drawDisplayButtonBorder(x0, y0, x1, y1, displayButton->BackgroundColor);
-#endif
-	/* print text */
-	ILI9341_printText(displayButton->Text, x0 + displayButton->TextXOffset, y0 + displayButton->TextYOffset, displayButton->BorderAndTextColor, displayButton->BackgroundColor, displayButton->FontSize);
+static void decrementDisplayMenuSelection(DisplayMenuStruct * displayMenu) {
+	uint8_t currentIdx, nextIdx;
+	currentIdx = displayMenu -> SelectionCounter;
+	nextIdx = (currentIdx - 1) % displayMenu -> NumButtons;
+	/* un-highlight current button */
+	highlightDisplayButton(displayMenu->Buttons + currentIdx);
+	/* highlight next button */
+	highlightDisplayButton(displayMenu->Buttons + nextIdx);
+	/* update selection counter */
+	displayMenu->SelectionCounter = nextIdx;
+}
+
+void incrementCurrentDisplayMenuSelection() {
+	incrementDisplayMenuSelection(currentDisplayMenuPtr);
+}
+
+void decrementCurrentDisplayMenuSelection() {
+	decrementDisplayMenuSelection(currentDisplayMenuPtr);
 }
 
 void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height) {

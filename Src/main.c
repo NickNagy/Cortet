@@ -256,10 +256,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = GPIO_PIN_2;// | GPIO_PIN_3 | GPIO_PIN_4;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
+
   /* should be very high priority, want system to handle button presses asap! */
   HAL_NVIC_SetPriority(EXTI2_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 1);
 
   HAL_NVIC_EnableIRQ(EXTI2_IRQn);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 }
 
 /* Initializes TIM2, the time base for LCD frame updates for animations (24fps) */
@@ -292,6 +297,13 @@ void EXTI2_IRQHandler() {
     __HAL_GPIO_EXTI_CLEAR_IT(EXTI_LINE_2);
     //HAL_GPIO_EXTI_Callback(EXTI_LINE_2);
   }
+}
+
+void EXTI0_IRQHandler() {
+	if(__HAL_GPIO_EXTI_GET_IT(EXTI_LINE_0) != RESET) {
+		selectCurrentDisplayButton();
+		__HAL_GPIO_EXTI_CLEAR_IT(EXTI_LINE_0);
+	}
 }
 
 void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {

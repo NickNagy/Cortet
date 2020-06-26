@@ -2,33 +2,73 @@
 
 static volatile WindowLinkedListNode * windowList = 0; // volatile in the hopes I can track it in debugger
 static volatile uint8_t numWindows = 0;
-static DisplayMenuStruct menu = {0, 0, 0, 0, 0, 0, 0, 0};
+
+static DisplayButtonStruct homeButton, backButton;
+static DisplayMenuStruct startMenu;
+static DisplayButtonStruct * currentDisplayButtonPtr = 0; // points to whatever button is currently selected
 static DisplayMenuStruct * currentDisplayMenuPtr = 0; // points to whatever menu is currently on the screen
+
+static void testAction1(void * Action) {
+	ILI9341_Fill(COLOR_GREEN);
+	currentDisplayMenuPtr = 0;
+	currentDisplayButtonPtr = &homeButton;
+	drawDisplayButton(currentDisplayButtonPtr);
+	highlightDisplayButton(currentDisplayButtonPtr);
+}
+
+static void testAction2(void * Action) {
+	ILI9341_Fill(COLOR_RED);
+	currentDisplayMenuPtr = 0;
+	currentDisplayButtonPtr = &homeButton;
+	drawDisplayButton(currentDisplayButtonPtr);
+	highlightDisplayButton(currentDisplayButtonPtr);
+}
+
+static void goToHomeScreen(void * Action) {
+	ILI9341_Fill(HOME_SCREEN_BACKGROUND_COLOR);
+	currentDisplayMenuPtr = &startMenu;
+	drawDisplayMenu(currentDisplayMenuPtr);
+}
+
+static void initButtonsAndMenus() {
+	/* home button */
+	homeButton.Action = &goToHomeScreen;
+	homeButton.Text = "Home";
+	homeButton.Width = 150;
+	homeButton.Height = 75;
+	homeButton.BorderAndTextColor = COLOR_WHITE;
+	homeButton.X = (WIDTH - homeButton.Width)>>1;
+	homeButton.Y = (HEIGHT - homeButton.Height)>>1;
+	verifyAndInitializeDisplayButton(&homeButton);
+
+	/* start menu */
+	DisplayButtonStruct * startMenuButtons, * greenButtonPtr, * redButtonPtr;
+	startMenuButtons = (DisplayButtonStruct*)malloc(2*sizeof(DisplayButtonStruct));
+	greenButtonPtr = startMenuButtons;
+	redButtonPtr = startMenuButtons + 1;
+
+	greenButtonPtr->Action = &testAction1;
+	greenButtonPtr->Text = "Fill Screen Green";
+	redButtonPtr->Action = &testAction2;
+	redButtonPtr->Text = "Fill Screen Red";
+
+	startMenu.BackgroundColor = COLOR_BLACK;
+	startMenu.BorderAndTextColor = COLOR_WHITE;
+	startMenu.ButtonAlignment = DISPLAY_BUTTON_CENTER_ALIGNMENT;
+	startMenu.ButtonHeight = 20;
+	startMenu.ButtonWidth = 100;
+
+	assignButtonsToMenu(startMenuButtons, 2, &startMenu);
+}
 
 void displayInterfaceInit() {
 	ILI9341_Init();
 	ILI9341_setRotation(SCREEN_ORIENTATION);
-	ILI9341_Fill(BACKGROUND_COLOR);
 
 	HAL_Delay(100);
 
-	/* initialize menus */
-	DisplayButtonStruct * menuButtons, * helloButton, * worldButton;
-	menuButtons = (DisplayButtonStruct*)malloc(2*sizeof(DisplayButtonStruct));
-	helloButton = menuButtons;
-	worldButton = menuButtons + 1;
-	currentDisplayMenuPtr = &menu;
-
-	helloButton->Text = "Hello";
-	worldButton->Text = "World!";
-
-	menu.ButtonWidth = 100;
-	menu.BackgroundColor = COLOR_BLACK;
-	menu.BorderAndTextColor = COLOR_WHITE;
-	menu.ButtonAlignment = DISPLAY_BUTTON_CENTER_ALIGNMENT;
-	assignButtonsToMenu(menuButtons, 2, &menu);
-
-	drawDisplayMenu(&menu);
+	initButtonsAndMenus();
+	goToHomeScreen(0);
 }
 
 static void setDisplayButtonTextParams(DisplayButtonStruct * displayButton) {
@@ -129,6 +169,7 @@ void drawDisplayMenu(DisplayMenuStruct * displayMenu) {
 		buttonPtr++;
 	}
 	/* highlight first button @ initialization */
+	currentDisplayButtonPtr = displayMenu->Buttons;
 	highlightDisplayButton(displayMenu->Buttons);
 }
 
@@ -155,36 +196,41 @@ static void highlightDisplayButton(DisplayButtonStruct * displayButton) {
 	displayButton -> Status ^= 2; /* swap state of button for next time it is drawn */
 }
 
-static void incrementDisplayMenuSelection(DisplayMenuStruct * displayMenu) {
+/*
+ * @param:
+ * 		direction: 1 = negative, 0 = positive
+ * @retval: None
+ *  */
+static void updateDisplayMenuSelection(DisplayMenuStruct * displayMenu, uint8_t direction) {
 	uint8_t currentIdx, nextIdx;
 	currentIdx = displayMenu -> SelectionCounter;
-	nextIdx = (currentIdx + 1) % displayMenu -> NumButtons;
+	if (direction) {
+		nextIdx = (currentIdx - 1) % displayMenu -> NumButtons;
+	} else {
+		nextIdx = (currentIdx + 1) % displayMenu -> NumButtons;
+	}
 	/* un-highlight current button */
 	highlightDisplayButton(displayMenu->Buttons + currentIdx);
 	/* highlight new button */
 	highlightDisplayButton(displayMenu->Buttons + nextIdx);
-	/* update selection counter */
-	displayMenu->SelectionCounter = nextIdx;
-}
-
-static void decrementDisplayMenuSelection(DisplayMenuStruct * displayMenu) {
-	uint8_t currentIdx, nextIdx;
-	currentIdx = displayMenu -> SelectionCounter;
-	nextIdx = (currentIdx - 1) % displayMenu -> NumButtons;
-	/* un-highlight current button */
-	highlightDisplayButton(displayMenu->Buttons + currentIdx);
-	/* highlight next button */
-	highlightDisplayButton(displayMenu->Buttons + nextIdx);
-	/* update selection counter */
+	/* update selection counter and current button */
+	currentDisplayButtonPtr = displayMenu->Buttons + nextIdx;
 	displayMenu->SelectionCounter = nextIdx;
 }
 
 void incrementCurrentDisplayMenuSelection() {
-	incrementDisplayMenuSelection(currentDisplayMenuPtr);
+	if (!currentDisplayMenuPtr) return;
+	updateDisplayMenuSelection(currentDisplayMenuPtr, 0);
 }
 
 void decrementCurrentDisplayMenuSelection() {
-	decrementDisplayMenuSelection(currentDisplayMenuPtr);
+	if (!currentDisplayMenuPtr) return;
+	updateDisplayMenuSelection(currentDisplayMenuPtr, 1);
+}
+
+/* makes the current button call its function */
+void selectCurrentDisplayButton() {
+	currentDisplayButtonPtr->Action(currentDisplayButtonPtr->ActionItem);
 }
 
 void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height) {
@@ -236,7 +282,7 @@ void refreshPlot(WindowStruct * w, AUDIO_BUFFER_PTR_T newData) {
 
 /* NOTE: assumes MAX_WINDOWS is 4 */
 static void refreshDisplays() {
-	ILI9341_Fill(BACKGROUND_COLOR); // clear screen
+	ILI9341_Fill(HOME_SCREEN_BACKGROUND_COLOR); // clear screen
 	if (!numWindows) return;
 	// go back thru list and update orientation parameters in each window
 	volatile WindowLinkedListNode * current = windowList;

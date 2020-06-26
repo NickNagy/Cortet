@@ -7,7 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define BACKGROUND_COLOR COLOR_BLUE
+#define HOME_SCREEN_BACKGROUND_COLOR COLOR_BLUE
 #define SCREEN_ORIENTATION 1 // range 1 -> 4
 
 #if SCREEN_ORIENTATION % 2
@@ -35,6 +35,9 @@ typedef struct DisplayButtonStruct {
 	uint16_t TextYOffset;
 	uint16_t BackgroundColor;
 	uint16_t BorderAndTextColor;
+	/* action item is a ptr to a menu struct, a peripheral, or some other thing that can be operated on - it's interpreted by the function ptr "Action" */
+	void * ActionItem;
+	void (*Action)(void*);
 	/* status:
 	 * 0 = uninitialized
 	 * 1 = initialized, not highlighted
@@ -98,15 +101,19 @@ typedef struct WindowLinkedListNode {
 
 #define INVERT_COLOR(color) 0xFFFF - color
 
+static void testAction1(void * Action);
+static void testAction2(void * Action);
+static void goToHomeScreen(void * Action);
+static void initButtonsAndMenus();
 static void setDisplayButtonTextParams(DisplayButtonStruct * displayButton);
 void verifyAndInitializeDisplayButton(DisplayButtonStruct * displayButton);
 void assignButtonsToMenu(DisplayButtonStruct * displayButtons, uint8_t numButtons, DisplayMenuStruct * displayMenu);
 static void drawDisplayButtonBorder(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color);
 static void highlightDisplayButton(DisplayButtonStruct * displayButton);
-static void incrementDisplayMenuSelection(DisplayMenuStruct * displayMenu);
-static void decrementDisplayMenuSelection(DisplayMenuStruct * displayMenu);
+static void updateDisplayMenuSelection(DisplayMenuStruct * displayMenu, uint8_t direction);
 void incrementCurrentDisplayMenuSelection();
 void decrementCurrentDisplayMenuSelection();
+void selectCurrentDisplayButton();
 void drawDisplayButton(DisplayButtonStruct * displayButton);
 void drawDisplayMenu(DisplayMenuStruct * displayMenu);
 void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height);

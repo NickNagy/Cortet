@@ -1,237 +1,109 @@
+/*
+ * This is a very large file. I have done my best to organize it so that it's still easy to maneuver.
+ *
+ * */
+
 #include "display.h"
 
-static volatile WindowLinkedListNode * windowList = 0; // volatile in the hopes I can track it in debugger
+/*
+ * ------------------------------------------------------------
+ * ******************* GLOBAL VARIABLES ***********************
+ * ------------------------------------------------------------
+ * */
+
+static volatile DisplayWindowLinkedListNode * windowList = 0; // volatile in the hopes I can track it in debugger
 static volatile uint8_t numWindows = 0;
 
-static DisplayButtonStruct homeButton, backButton;
-static DisplayMenuStruct startMenu;
-static DisplayButtonStruct * currentDisplayButtonPtr = 0; // points to whatever button is currently selected
-static DisplayMenuStruct * currentDisplayMenuPtr = 0; // points to whatever menu is currently on the screen
+static DisplayWindowStruct homeScreen, mainSettingsScreen, periphSettingsScreen,
+		viewSettingsScreen, periphButtonSettingsScreen, knobSettingsScreen,
+		switchSettingsScreen, windowSettingsScreen;
+static DisplayButtonStruct returnHomeButton;
 
-static void testAction1(void * Action) {
-	ILI9341_Fill(COLOR_GREEN);
-	currentDisplayMenuPtr = 0;
-	currentDisplayButtonPtr = &homeButton;
-	drawDisplayButton(currentDisplayButtonPtr);
-	highlightDisplayButton(currentDisplayButtonPtr);
-}
+static DisplayWindowStruct * currentDisplayWindowPtr; // points to whatever window is currently on the screen
+static DisplayButtonStruct * currentDisplayButtonPtr; // points to whatever button is currently selected
 
-static void testAction2(void * Action) {
-	ILI9341_Fill(COLOR_RED);
-	currentDisplayMenuPtr = 0;
-	currentDisplayButtonPtr = &homeButton;
-	drawDisplayButton(currentDisplayButtonPtr);
-	highlightDisplayButton(currentDisplayButtonPtr);
-}
-
-static void goToHomeScreen(void * Action) {
-	ILI9341_Fill(HOME_SCREEN_BACKGROUND_COLOR);
-	currentDisplayMenuPtr = &startMenu;
-	drawDisplayMenu(currentDisplayMenuPtr);
-}
-
-static void initButtonsAndMenus() {
-	/* home button */
-	homeButton.Action = &goToHomeScreen;
-	homeButton.Text = "Home";
-	homeButton.Width = 150;
-	homeButton.Height = 75;
-	homeButton.BorderAndTextColor = COLOR_WHITE;
-	homeButton.X = (WIDTH - homeButton.Width)>>1;
-	homeButton.Y = (HEIGHT - homeButton.Height)>>1;
-	verifyAndInitializeDisplayButton(&homeButton);
-
-	/* start menu */
-	DisplayButtonStruct * startMenuButtons, * greenButtonPtr, * redButtonPtr;
-	startMenuButtons = (DisplayButtonStruct*)malloc(2*sizeof(DisplayButtonStruct));
-	greenButtonPtr = startMenuButtons;
-	redButtonPtr = startMenuButtons + 1;
-
-	greenButtonPtr->Action = &testAction1;
-	greenButtonPtr->Text = "Fill Screen Green";
-	redButtonPtr->Action = &testAction2;
-	redButtonPtr->Text = "Fill Screen Red";
-
-	startMenu.BackgroundColor = COLOR_BLACK;
-	startMenu.BorderAndTextColor = COLOR_WHITE;
-	startMenu.ButtonAlignment = DISPLAY_BUTTON_CENTER_ALIGNMENT;
-	startMenu.ButtonHeight = 20;
-	startMenu.ButtonWidth = 100;
-
-	assignButtonsToMenu(startMenuButtons, 2, &startMenu);
-}
-
-void displayInterfaceInit() {
-	ILI9341_Init();
-	ILI9341_setRotation(SCREEN_ORIENTATION);
-
-	HAL_Delay(100);
-
-	initButtonsAndMenus();
-	goToHomeScreen(0);
-}
-
-static void setDisplayButtonTextParams(DisplayButtonStruct * displayButton) {
-	/* determine length of text, to know how to set font size */
-	uint16_t displayTextHeight, displayTextWidth;
-	uint8_t fontSize, textLength;
-	char * textPtr = displayButton->Text;
-	textLength = 0;
-	while(*textPtr!=0) {
-		textLength++;
-		textPtr++;
-	}
-	/* determine text size and offset based on button size */
-	fontSize = 1;
-	while ((fontSize+1) * textLength * MIN_BUTTON_WIDTH < displayButton->Width && (fontSize+1) * MIN_BUTTON_HEIGHT < displayButton->Height) {
-		fontSize++;
-	}
-	displayButton->FontSize = fontSize;
-	/* if width and height of button don't fit text even at font size 1, update their dimensions */
-	displayTextHeight = fontSize * MIN_BUTTON_HEIGHT;
-	displayTextWidth = fontSize * textLength * MIN_BUTTON_WIDTH;
-	displayButton->Width = displayButton->Width < displayTextWidth ? displayTextWidth : displayButton -> Width;
-	displayButton->Height = displayButton->Height < displayTextHeight ? displayTextHeight : displayButton -> Height;
-	/* configure offset of text based on relative size of button */
-	displayButton->TextXOffset = (displayButton->Width - displayTextWidth) >> 1;
-	displayButton->TextYOffset = (displayButton->Height - displayTextHeight) >> 1;
-}
-
-void verifyAndInitializeDisplayButton(DisplayButtonStruct * displayButton) {
-	/* update width and height of button if necessary */
-	displayButton->Width = (displayButton->Width < MIN_BUTTON_WIDTH) ? MIN_BUTTON_WIDTH : displayButton->Width;
-	displayButton->Height = (displayButton->Height < MIN_BUTTON_HEIGHT) ? MIN_BUTTON_HEIGHT : displayButton->Height;
-	/* set font size */
-	setDisplayButtonTextParams(displayButton);
-	/* update status to show button was initialized */
-	displayButton->Status |= 1;
-}
-
-/* WARNING: will override individual button settings to match the menu settings */
-void assignButtonsToMenu(DisplayButtonStruct * displayButtons, uint8_t numButtons, DisplayMenuStruct * displayMenu) {
-	DisplayButtonStruct * buttonPtr;
-	uint16_t buttonX;
-	displayMenu->Buttons = displayButtons;
-	displayMenu->NumButtons = numButtons;
-	buttonPtr = displayMenu->Buttons;
-	/* assure buttons don't exceed the dimensions of the screen */
-	displayMenu->ButtonWidth = (displayMenu->ButtonWidth > WIDTH) ? WIDTH : displayMenu -> ButtonWidth;
-	displayMenu->ButtonHeight = ((displayMenu->ButtonHeight + 1) * numButtons > HEIGHT) ? HEIGHT/(numButtons+1) : displayMenu->ButtonHeight;
-	/* determine x coordinate for buttons based on menu alignment setting */
-	switch(displayMenu->ButtonAlignment) {
-		case 0: /* right-justified */
-			buttonX = WIDTH - displayMenu->ButtonWidth;
-			break;
-		case 1: /* centered */
-			buttonX = (WIDTH - displayMenu->ButtonWidth) >> 1;
-			break;
-		default: /* left-justified */
-			buttonX = 0;
-	}
-	for (int i = 0; i < numButtons; i++) {
-		buttonPtr->BackgroundColor = displayMenu->BackgroundColor;
-		buttonPtr->BorderAndTextColor = displayMenu->BorderAndTextColor;
-		buttonPtr->Width = displayMenu->ButtonWidth;
-		buttonPtr->Height = displayMenu->ButtonHeight;
-		buttonPtr->X = buttonX;
-		/* initialize button, this will save time by skipping checks in other functions */
-		verifyAndInitializeDisplayButton(buttonPtr);
-		/* TODO: figure out update logic with menu button dimensions */
-		buttonPtr->Y = i*(buttonPtr->Height + 1);
-		buttonPtr++;
-	}
-}
-
-void drawDisplayButton(DisplayButtonStruct * displayButton) {
-	uint16_t x0, y0, x1, y1;
-	if (!(displayButton->Status & 1)) { /* if button hasn't been initialized yet, initialize it! */
-		verifyAndInitializeDisplayButton(displayButton);
-	}
-	/* draw and fill rectangle */
-	x0 = displayButton -> X;
-	x1 = x0 + displayButton -> Width;
-	y0 = displayButton -> Y;
-	y1 = y0 + displayButton -> Height;
-#if RECTANGULAR_DISPLAY_BUTTONS
-	ILI9341_Fill_Rect(x0, y0, x1, y1, displayButton->BackgroundColor);
-	ILI9341_drawRect(x0, y0, x1, y1, displayButton->BorderAndTextColor);
-#else
-	drawDisplayButtonBorder(x0, y0, x1, y1, displayButton->BackgroundColor);
-#endif
-	/* print text */
-	ILI9341_printText(displayButton->Text, x0 + displayButton->TextXOffset, y0 + displayButton->TextYOffset, displayButton->BorderAndTextColor, displayButton->BackgroundColor, displayButton->FontSize);
-}
-
-void drawDisplayMenu(DisplayMenuStruct * displayMenu) {
-	DisplayButtonStruct * buttonPtr = displayMenu -> Buttons;
-	for (int i = 0; i < displayMenu -> NumButtons; i++) {
-		drawDisplayButton(buttonPtr);
-		buttonPtr++;
-	}
-	/* highlight first button @ initialization */
-	currentDisplayButtonPtr = displayMenu->Buttons;
-	highlightDisplayButton(displayMenu->Buttons);
-}
-
-static void highlightDisplayButton(DisplayButtonStruct * displayButton) {
-	uint16_t x0, y0, x1, y1, backgroundColor, textColor;
-	x0 = displayButton->X;
-	x1 = x0 + displayButton->Width;
-	y0 = displayButton->Y;
-	y1 = y0 + displayButton->Height;
-	if (displayButton -> Status & 2) { /* if button is highlighted */
-		backgroundColor = INVERT_COLOR(displayButton->BackgroundColor);
-		textColor = INVERT_COLOR(displayButton->BorderAndTextColor);
-	} else {
-		backgroundColor = displayButton->BackgroundColor;
-		textColor = displayButton->BorderAndTextColor;
-	}
-#if RECTANGULAR_DISPLAY_BUTTONS
-	ILI9341_Fill_Rect(x0, y0, x1, y1, backgroundColor);
-	ILI9341_drawRect(x0, y0, x1, y1, textColor);
-#else
-	drawDisplayButtonBorder(x0, y0, x1, y1, backgroundColor);
-#endif
-	ILI9341_printText(displayButton->Text, x0 + displayButton->TextXOffset, y0 + displayButton->TextYOffset, textColor, backgroundColor, displayButton->FontSize);
-	displayButton -> Status ^= 2; /* swap state of button for next time it is drawn */
-}
+/*
+ * ----------------------------------------------------------------------------------------------------------------
+ * ********************************************** EXTI FUNCTIONS **************************************************
+ * ----------------------------------------------------------------------------------------------------------------
+ */
 
 /*
  * @param:
  * 		direction: 1 = negative, 0 = positive
  * @retval: None
  *  */
-static void updateDisplayMenuSelection(DisplayMenuStruct * displayMenu, uint8_t direction) {
+static void updateDisplayWindowMenuSelection(DisplayWindowStruct * displayWindow,
+		uint8_t direction) {
 	uint8_t currentIdx, nextIdx;
-	currentIdx = displayMenu -> SelectionCounter;
+	currentIdx = displayWindow->MenuSelectionIdx;
 	if (direction) {
-		nextIdx = (currentIdx - 1) % displayMenu -> NumButtons;
+		nextIdx = (currentIdx - 1) % displayWindow->MenuSize;
 	} else {
-		nextIdx = (currentIdx + 1) % displayMenu -> NumButtons;
+		nextIdx = (currentIdx + 1) % displayWindow->MenuSize;
 	}
 	/* un-highlight current button */
-	highlightDisplayButton(displayMenu->Buttons + currentIdx);
+	highlightDisplayButton(displayWindow->Menu + currentIdx);
 	/* highlight new button */
-	highlightDisplayButton(displayMenu->Buttons + nextIdx);
+	highlightDisplayButton(displayWindow->Menu + nextIdx);
 	/* update selection counter and current button */
-	currentDisplayButtonPtr = displayMenu->Buttons + nextIdx;
-	displayMenu->SelectionCounter = nextIdx;
+	currentDisplayButtonPtr = displayWindow->Menu + nextIdx;
+	displayWindow->MenuSelectionIdx = nextIdx;
 }
 
-void incrementCurrentDisplayMenuSelection() {
-	if (!currentDisplayMenuPtr) return;
-	updateDisplayMenuSelection(currentDisplayMenuPtr, 0);
+void incrementCurrentDisplayWindowMenuSelection() {
+	if (!currentDisplayWindowPtr)
+		return;
+	updateDisplayWindowMenuSelection(currentDisplayWindowPtr, 0);
 }
 
-void decrementCurrentDisplayMenuSelection() {
-	if (!currentDisplayMenuPtr) return;
-	updateDisplayMenuSelection(currentDisplayMenuPtr, 1);
+void decrementCurrentDisplayWindowMenuSelection() {
+	if (!currentDisplayWindowPtr)
+		return;
+	updateDisplayWindowMenuSelection(currentDisplayWindowPtr, 1);
 }
 
 /* makes the current button call its function */
 void selectCurrentDisplayButton() {
 	currentDisplayButtonPtr->Action(currentDisplayButtonPtr->ActionItem);
 }
+
+/*
+ * ----------------------------------------------------------------
+ * ******************* BUTTON ACTION FUNCTIONS ********************
+ * ----------------------------------------------------------------
+ * */
+
+static void goToHomeScreen(void * action) {
+	goToScreen((void*) &homeScreen);
+}
+
+static void goToScreen(void * displayWindowVoidPtr) {
+	DisplayWindowStruct * displayWindow =
+			(DisplayWindowStruct*) displayWindowVoidPtr;
+	ILI9341_Fill(displayWindow->BackgroundColor);
+	displayWindow->MenuSelectionIdx = 0;
+	currentDisplayButtonPtr = displayWindow->Menu;
+	currentDisplayWindowPtr = displayWindow;
+	drawDisplayWindow(displayWindow);
+}
+
+/* since this is (potentially) multiple window structs on the display, it functions differently from above funcs */
+static void goToViewScreen(void * action) {}
+
+static void setPeriphButtonToFuzzControl(void * periphButtonVoidPtr) {
+	ButtonConfigStruct * periphButton =
+			(ButtonConfigStruct*) periphButtonVoidPtr;
+	periphButton->effect_ptr = &fuzz_effect;
+}
+
+static void toggleRAMEnable(void * action) {}
+
+/*
+ * ----------------------------------------------------------------------
+ * *************************** DRAWING FUNCTIONS ************************
+ * ----------------------------------------------------------------------
+ * */
 
 void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height) {
 	int i;
@@ -250,69 +122,111 @@ void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16
 	}
 }
 
-void displayWindow(WindowStruct * w) {
-	uint16_t x0, y0, x1, y1;
-	x0 = w->X;
-	y0 = w->Y;
-	x1 = x0 + w->Width;
-	y1 = y0 + w->Height;
-	if (w->Plot) {
-		PlotStruct * plt = w->Plot;
-		ILI9341_Fill_Rect(x0, y0, x1, y1, plt->BackgroundColor);
-		if (plt->Data)
-			drawDataWave(plt->Data, plt->Length, plt->DataColor, w->X, w->Y, w->Width, w->Height);
-	} else {
-		ILI9341_Fill_Rect(x0, y0, x1, y1, w->BackgroundColor);
-	}
-	ILI9341_drawRect(x0, y0, x1, y1, w->BorderColor);
-}
-
 /* Intended to cleanly and quickly update the plot on the screen
  * Instead of clearing the entire window, re-draws the current plot line in BackgroundColor,
  * then draws the newBuffer on the screen in the DataColor
  * Resets plt->Data to point to newData
  * */
-void refreshPlot(WindowStruct * w, AUDIO_BUFFER_PTR_T newData) {
-	PlotStruct * p = w->Plot;
+void refreshPlot(DisplayWindowStruct * w, AUDIO_BUFFER_PTR_T newData) {
+	DisplayPlotStruct * p = w->Plot;
 	if (p->Data) // if current data is null, skip drawing over it
-		drawDataWave(p->Data, p->Length, p->BackgroundColor, w->X, w->Y, w->Width, w->Height);
+	drawDataWave(p->Data, p->Length, p->BackgroundColor, w->X, w->Y, w->Width, w->Height);
 	drawDataWave(newData, p->Length, p->DataColor, w->X, w->Y, w->Width, w->Height);
 	w->Plot->Data = newData;
+}
+
+void drawDisplayPlot(DisplayPlotStruct * plot) {}
+
+void drawDisplayButton(DisplayButtonStruct * displayButton) {
+	uint16_t x0, y0, x1, y1;
+	/* draw and fill rectangle */
+	x0 = displayButton->X;
+	x1 = x0 + displayButton->Width;
+	y0 = displayButton->Y;
+	y1 = y0 + displayButton->Height;
+#if RECTANGULAR_DISPLAY_BUTTONS
+	ILI9341_Fill_Rect(x0, y0, x1, y1, displayButton->BackgroundColor);
+	ILI9341_drawRect(x0, y0, x1, y1, displayButton->BorderAndTextColor);
+#else
+	drawDisplayButtonBorder(x0, y0, x1, y1, displayButton->BackgroundColor);
+#endif
+	/* print text */
+	ILI9341_printText(displayButton->Text, x0 + displayButton->TextXOffset,
+			y0 + displayButton->TextYOffset, displayButton->BorderAndTextColor,
+			displayButton->BackgroundColor, displayButton->FontSize);
+}
+
+static void highlightDisplayButton(DisplayButtonStruct * displayButton) {
+	displayButton->Status ^= 2; /* swap state of button for next time it is drawn */
+	displayButton->BackgroundColor = INVERT_COLOR(displayButton->BackgroundColor);
+	displayButton->BorderAndTextColor = INVERT_COLOR(displayButton->BorderAndTextColor);
+	drawDisplayButton(displayButton);
+}
+
+void drawDisplayWindow(DisplayWindowStruct * displayWindow) {
+	uint16_t x0, y0, x1, y1;
+	x0 = displayWindow->X;
+	y0 = displayWindow->Y;
+	x1 = x0 + displayWindow->Width;
+	y1 = y0 + displayWindow->Height;
+	ILI9341_Fill_Rect(x0, y0, x1, y1, displayWindow->BackgroundColor);
+	ILI9341_drawRect(x0, y0, x1, y1, displayWindow->BorderColor);
+	for (int i = 0; i < displayWindow->MenuSize; i++) {
+		/*highlight first button*/
+		if (i==0) {
+			highlightDisplayButton(displayWindow->Menu + i);
+		} else {
+			drawDisplayButton(displayWindow->Menu + i);
+		}
+	}
+	if (displayWindow->Plot) {
+		drawDisplayPlot(displayWindow->Plot);
+	}
 }
 
 /* NOTE: assumes MAX_WINDOWS is 4 */
 static void refreshDisplays() {
 	ILI9341_Fill(HOME_SCREEN_BACKGROUND_COLOR); // clear screen
-	if (!numWindows) return;
+	if (!numWindows)
+		return;
 	// go back thru list and update orientation parameters in each window
-	volatile WindowLinkedListNode * current = windowList;
+	volatile DisplayWindowLinkedListNode * current = windowList;
 	uint16_t width, height;
-	width = WIDTH >> ((numWindows-1)>>1); // only compress width if numWindows > 3
+	width = WIDTH >> ((numWindows - 1) >> 1); // only compress width if numWindows > 3
 	height = HEIGHT >> (numWindows > 1); // only compress if numWindows > 1
 	for (int i = 0; i < numWindows; i++) {
-		WindowStruct * currentWindow = current->Window;
-		currentWindow->X = width*(i > 1);
-		currentWindow->Y = height*(i % 2);
+		DisplayWindowStruct * currentWindow = current->Window;
+		currentWindow->X = width * (i > 1);
+		currentWindow->Y = height * (i % 2);
 		currentWindow->Width = width;
 		currentWindow->Height = height;
-		displayWindow(currentWindow);
+		updateDisplayWindowSpatialParams(currentWindow);
+		drawDisplayWindow(currentWindow);
 		current = current->Next;
 	}
 }
 
-void addWindow(WindowStruct * w) {
+/*
+ * ----------------------------------------------------------------------------------------
+ * ******************************* LINKED LIST FUNCTIONS **********************************
+ * ----------------------------------------------------------------------------------------
+ */
+
+void addWindow(DisplayWindowStruct * w) {
 	//assert(numWindows < MAX_WINDOWS - 1);
-	WindowLinkedListNode * newWindowLinkedListNode = (WindowLinkedListNode *)malloc(sizeof(WindowLinkedListNode));
-	newWindowLinkedListNode->Window = w;
-	newWindowLinkedListNode->Next = 0;
+	DisplayWindowLinkedListNode * newDisplayWindowLinkedListNode =
+			(DisplayWindowLinkedListNode *) malloc(
+					sizeof(DisplayWindowLinkedListNode));
+	newDisplayWindowLinkedListNode->Window = w;
+	newDisplayWindowLinkedListNode->Next = 0;
 	if (!numWindows) {
-		windowList = newWindowLinkedListNode;
+		windowList = newDisplayWindowLinkedListNode;
 	} else {
-		WindowLinkedListNode * current = windowList;
-		while(current->Next) {
+		DisplayWindowLinkedListNode * current = windowList;
+		while (current->Next) {
 			current = current->Next;
 		}
-		current->Next = newWindowLinkedListNode;
+		current->Next = newDisplayWindowLinkedListNode;
 	}
 	numWindows++;
 	refreshDisplays();
@@ -324,11 +238,11 @@ void deleteWindow(uint8_t idx) {
 		if (numWindows == 1) {
 			windowList = 0; // null
 		} else {
-			windowList = windowList -> Next;
+			windowList = windowList->Next;
 		}
 	}
-	WindowLinkedListNode * prev = windowList;
-	for (int i = 0; i < idx-1; i++) { // go to node directly preceding the one we want to delete
+	DisplayWindowLinkedListNode * prev = windowList;
+	for (int i = 0; i < idx - 1; i++) { // go to node directly preceding the one we want to delete
 		prev = prev->Next;
 	}
 	prev->Next = prev->Next->Next;
@@ -345,13 +259,13 @@ void swapWindows(uint8_t idx1, uint8_t idx2) {
 		idx2 = idx1;
 		idx1 = tmp;
 	}
-	WindowLinkedListNode * w1, * w2, * w1Prev, * w2Prev, * wTmp;
+	DisplayWindowLinkedListNode * w1, *w2, *w1Prev, *w2Prev, *wTmp;
 	wTmp = windowList;
 	w1 = wTmp;
 	for (int i = 0; i < idx2; i++) {
 		if (i == idx1 - 1) {
 			w1Prev = wTmp;
-			w1 = wTmp ->Next;
+			w1 = wTmp->Next;
 		} else if (i == idx2 - 1) {
 			w2Prev = wTmp;
 			w2 = wTmp->Next;
@@ -367,4 +281,255 @@ void swapWindows(uint8_t idx1, uint8_t idx2) {
 	w1->Next = w2->Next;
 	w2->Next = wTmp;
 	refreshDisplays();
+}
+
+/*
+ * ------------------------------------------------------------------------------------------------------------
+ * ******************************** ASSIGNMENT AND PARAM-SETTING FUNCTIONS ************************************
+ * ------------------------------------------------------------------------------------------------------------
+ */
+
+static void fitTextToDisplayButton(DisplayButtonStruct * displayButton, char * text) {
+	/* determine length of text, to know how to set font size */
+	uint16_t displayTextHeight, displayTextWidth;
+	uint8_t fontSize, textLength;
+	char * textPtr = text;
+	fontSize = 1;
+	textLength = 0;
+	while(*textPtr!=0) {
+		textLength++;
+		/* if text is wider than button, clip text */
+		if (textLength * MIN_TEXT_WIDTH >= displayButton->Width) {
+			*(textPtr+1) = 0;
+		}
+		textPtr++;
+	}
+	/* determine text size and offset based on button size --> this is skipped over if text was clipped (fontsize will stay at 1) */
+	while ((fontSize+1) * textLength * MIN_TEXT_WIDTH < displayButton->Width && (fontSize+1) * MIN_TEXT_HEIGHT < displayButton->Height) {
+		fontSize++;
+	}
+	displayButton->FontSize = fontSize;
+	displayTextHeight = fontSize * MIN_TEXT_HEIGHT;
+	displayTextWidth = fontSize * textLength * MIN_TEXT_WIDTH;
+	/* configure offset of text based on relative size of button */
+	displayButton->TextXOffset = (displayButton->Width - displayTextWidth) >> 1;
+	displayButton->TextYOffset = (displayButton->Height - displayTextHeight) >> 1;
+}
+
+static void changeDisplayButtonText(DisplayButtonStruct * displayButton, char * newText) {
+	fitTextToDisplayButton(displayButton, newText);
+	displayButton->Text = newText;
+}
+
+static void updateDisplayButtonSpatialParams(DisplayButtonStruct * displayButton) {
+	/* update width and height of button if necessary */
+	displayButton->Width = (displayButton->Width < MIN_TEXT_WIDTH) ? MIN_TEXT_WIDTH : displayButton->Width;
+	displayButton->Height = (displayButton->Height < MIN_TEXT_HEIGHT) ? MIN_TEXT_HEIGHT : displayButton->Height;
+	/* set font size */
+	fitTextToDisplayButton(displayButton, displayButton->Text);
+	/* update status to show button was initialized */
+	displayButton->Status |= 1;
+}
+
+/* assumes every displayButton has same design specs
+ * assumes displayButton width and height are valid for window dimensions
+ * */
+static void alignButtonsInWindow(DisplayWindowStruct * displayWindow, DisplayButtonStruct * displayButton, uint8_t numButtons, uint8_t alignment) {
+	DisplayButtonStruct * buttonPtr;
+	uint16_t windowX, windowY, windowWidth, windowHeight, buttonX, buttonY, buttonWidth, buttonHeight;
+	windowX = displayWindow->X;
+	windowY = displayWindow->Y;
+	windowWidth = displayWindow->Width;
+	windowHeight = displayWindow->Height;
+	buttonWidth = displayButton->Width;
+	/* buttonHeight = height of all buttons total */
+	buttonHeight = displayButton->Height * numButtons;
+	switch(alignment) {
+		case DISPLAY_BUTTON_TOP_LEFT_ALIGNMENT:
+			buttonX = windowX;
+			buttonY = windowY;
+			break;
+		case DISPLAY_BUTTON_TOP_CENTER_ALIGNMENT:
+			buttonX = windowX + (windowWidth - buttonWidth) >> 1;
+			buttonY = windowY;
+			break;
+		case DISPLAY_BUTTON_TOP_RIGHT_ALIGNMENT:
+			buttonX = windowX + windowWidth - buttonWidth;
+			buttonY = windowY;
+			break;
+		case DISPLAY_BUTTON_MID_LEFT_ALIGNMENT:
+			buttonX = windowX;
+			buttonY = windowY + (windowHeight - buttonHeight)>>1;
+			break;
+		case DISPLAY_BUTTON_MID_CENTER_ALIGNMENT:
+			buttonX = windowX + (windowWidth - buttonWidth)>>1;
+			buttonY = windowY + (windowHeight - buttonHeight)>>1;
+			break;
+		case DISPLAY_BUTTON_MID_RIGHT_ALIGNMENT:
+			buttonX = windowX + windowWidth - buttonWidth;
+			buttonY = windowY + (windowHeight - buttonHeight)>>1;
+		case DISPLAY_BUTTON_BOT_LEFT_ALIGNMENT:
+			buttonX = windowX;
+			buttonY = windowY + windowHeight - buttonHeight;
+			break;
+		case DISPLAY_BUTTON_BOT_CENTER_ALIGNMENT:
+			buttonX = windowX + (windowWidth - buttonWidth)>>1;
+			buttonY = windowY + windowHeight - buttonHeight;
+			break;
+		default:
+			buttonX = windowX + windowWidth - buttonWidth;
+			buttonY = windowY + windowHeight - buttonHeight;
+	}
+	/* update buttons */
+	buttonPtr = displayButton;
+	for (int i = 0; i < numButtons; i++) {
+		buttonPtr->X = buttonX;
+		buttonPtr->Y = buttonY + i*buttonPtr->Height;
+		buttonPtr++;
+	}
+}
+
+static void updateDisplayWindowSpatialParams(DisplayWindowStruct * displayWindow) {
+	/* check that display is within the bounds of the screen -- if not, update window's width and height */
+	displayWindow->Width = (displayWindow->Width + displayWindow->X < WIDTH) ? WIDTH - displayWindow->X : displayWindow->Width;
+	displayWindow->Height = (displayWindow->Height + displayWindow->Y < HEIGHT) ? HEIGHT - displayWindow->Y : displayWindow->Height;
+	/* then check that the menu (if one exists) is also still within the bounds of the screen */
+	/* first update width and height of buttons, as they affect the text dimensions as well */
+	uint16_t menuButtonWidth, menuButtonHeight;
+	DisplayButtonStruct * menu = displayWindow->Menu;
+	menuButtonWidth = menu->Width < displayWindow->Width ? menu->Width : displayWindow->Width;
+	menuButtonHeight = (menu->Height * displayWindow->MenuSize < displayWindow->Height) ? menu->Height : displayWindow->Height/displayWindow->MenuSize;
+	for (int i = 0; i < displayWindow->MenuSize; i++) {
+		menu->Width = menuButtonWidth;
+		menu->Height = menuButtonHeight;
+		fitTextToDisplayButton(menu, menu->Text);
+		menu++;
+	}
+	/* then update buttons xy coordinates so that they are aligned within the window */
+	alignButtonsInWindow(displayWindow, displayWindow->Menu, displayWindow->MenuSize, displayWindow->MenuAlignment);
+	/* verify plot TODO */
+}
+
+/*
+ * -----------------------------------------------------------------------------------------
+ * ************************************* INIT FUNCTIONS ************************************
+ * -----------------------------------------------------------------------------------------
+ */
+
+static void initWindowSettingsScreen() {}
+
+static void initViewSettingsScreen() {}
+
+static void initPeriphSwitchSettingsScreen() {}
+
+static void initPeriphKnobSettingsScreen() {}
+
+static void initPeriphButtonSettingsScreen () {}
+
+static void initPeriphSettingsScreen() {
+	periphSettingsScreen = PERIPH_SETTINGS_SCREEN_DEFAULT_STRUCT;
+	DisplayButtonStruct * buttonPtr;
+	DisplayButtonStruct * periphSettingsButtons = (DisplayButtonStruct*)malloc(3*sizeof(DisplayButtonStruct));
+	buttonPtr = periphSettingsButtons;
+	/* button settings button */
+	*buttonPtr = PERIPH_SETTINGS_BUTTON_DEFAULT_STRUCT;
+	buttonPtr->Action = &goToScreen;
+	buttonPtr->ActionItem = 0; /* TODO */
+	buttonPtr->Text = "Button Settings";
+	buttonPtr++;
+	/* knob settings button */
+	*buttonPtr = PERIPH_SETTINGS_BUTTON_DEFAULT_STRUCT;
+	buttonPtr->Action=&goToScreen;
+	buttonPtr->Text = "Knob Settings";
+	buttonPtr++;
+	/* switch settings button */
+	*buttonPtr = PERIPH_SETTINGS_BUTTON_DEFAULT_STRUCT;
+	buttonPtr->Action=&goToScreen;
+	buttonPtr->Text = "Switch Settings";
+	/* add buttons to window */
+	periphSettingsScreen.Menu = periphSettingsButtons;
+	periphSettingsScreen.MenuSize = 3;
+	/* lastly, update dimensions of screen (and of buttons and their text) */
+	updateDisplayWindowSpatialParams(&periphSettingsScreen);
+}
+
+static void initMainSettingsScreen() {
+	mainSettingsScreen = MAIN_SETTINGS_SCREEN_DEFAULT_STRUCT;
+	DisplayButtonStruct * buttonPtr;
+	DisplayButtonStruct * mainSettingsButtons = (DisplayButtonStruct*) malloc(
+			3*sizeof(DisplayButtonStruct));
+	buttonPtr = mainSettingsButtons;
+	/* periph settings button */
+	*buttonPtr = MAIN_SETTINGS_BUTTON_DEFAULT_STRUCT;
+	buttonPtr->Action = &goToScreen;
+	buttonPtr->ActionItem = &periphSettingsScreen;
+	buttonPtr->Text = "Peripheral Settings";
+	buttonPtr++;
+	/* view settings button */
+	*buttonPtr = MAIN_SETTINGS_BUTTON_DEFAULT_STRUCT;
+	buttonPtr->Action = &goToScreen;
+	buttonPtr->ActionItem = &viewSettingsScreen;
+	buttonPtr->Text = "View Settings";
+	buttonPtr++;
+	/* record enable/disable toggle button */
+	*buttonPtr = MAIN_SETTINGS_BUTTON_DEFAULT_STRUCT;
+	buttonPtr->Action = &toggleRAMEnable;
+	buttonPtr->Text = "Recording Disabled";
+	/* add buttons to window */
+	mainSettingsScreen.Menu = mainSettingsButtons;
+	mainSettingsScreen.MenuSize = 3;
+	/* lastly, update dimensions of screen (and of buttons and their text) */
+	updateDisplayWindowSpatialParams(&mainSettingsScreen);
+}
+
+static void initHomeScreen() {
+	homeScreen = HOME_SCREEN_DEFAULT_STRUCT;
+	DisplayButtonStruct * buttonPtr;
+	DisplayButtonStruct * homeMenuButtons = (DisplayButtonStruct*) malloc(
+			2 * sizeof(DisplayButtonStruct));
+	buttonPtr = homeMenuButtons;
+	/* settings button */
+	*buttonPtr = HOME_BUTTON_DEFAULT_STRUCT;
+	buttonPtr->Action = &goToScreen;
+	buttonPtr->ActionItem = &mainSettingsScreen;
+	buttonPtr->Text = "Settings";
+	buttonPtr++;
+	/* view button */
+	*buttonPtr = HOME_BUTTON_DEFAULT_STRUCT;
+	buttonPtr->Action = &goToViewScreen;
+	buttonPtr->Text = "View";
+	/* add buttons to window */
+	homeScreen.Menu = homeMenuButtons;
+	homeScreen.MenuSize = 2;
+	/* lastly, update dimensions of screen (and of buttons and their text) */
+	updateDisplayWindowSpatialParams(&homeScreen);
+}
+
+/* initialize all buttons and their operations, all menus, all windows */
+/* TODO: may crash b/c local variables */
+static void initAllItems() {
+	/* home button */
+	INIT_DISPLAY_BUTTON_DEFAULT(returnHomeButton);
+	returnHomeButton.Action = &goToHomeScreen;
+	returnHomeButton.Text = "Home";
+	returnHomeButton.Width = 150;
+	returnHomeButton.Height = 75;
+	returnHomeButton.X = (WIDTH - returnHomeButton.Width) >> 1;
+	returnHomeButton.Y = (HEIGHT - returnHomeButton.Height) >> 1;
+	updateDisplayButtonSpatialParams(&returnHomeButton);
+	/* periph settings screen */
+	initPeriphSettingsScreen();
+	/* main settings screen */
+	initMainSettingsScreen();
+	/* home screen */
+	initHomeScreen();
+}
+
+void displayInterfaceInit() {
+	initAllItems();
+
+	ILI9341_Init();
+	ILI9341_setRotation(SCREEN_ORIENTATION);
+
+	goToHomeScreen((void*)0);
 }

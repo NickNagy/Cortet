@@ -293,7 +293,7 @@ void EXTI2_IRQHandler() {
   if(__HAL_GPIO_EXTI_GET_IT(EXTI_LINE_2) != RESET)
   {
     HAL_GPIO_TogglePin(TEST_LED_GPIO_Port, TEST_LED_Pin);
-    incrementCurrentDisplayMenuSelection();
+    incrementCurrentDisplayWindowMenuSelection();
     __HAL_GPIO_EXTI_CLEAR_IT(EXTI_LINE_2);
     //HAL_GPIO_EXTI_Callback(EXTI_LINE_2);
   }

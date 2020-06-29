@@ -12,27 +12,31 @@
 
 #define UINT uint32_t
 #define Q    q31_t
-#define ARM_RFFT_INSTANCE               arm_rfft_instance_q31
-#define ARM_CFFT_RADIX4_INSTANCE arm_cfft_radix4_instance_q31
-#define ARM_COPY(in, out, size)         arm_copy_q31(in, out, size)
-#define ARM_RFFT_INIT(rfftInstancePtr, size) arm_rfft_init_q31(rfftInstancePtr, size, 0, 1)
-#define ARM_RFFT(instance, in, out)     arm_rfft_q31(instance, in, out)
-#define ARM_SHIFT(in, shift, out, size) arm_shift_q31(in, shift, out, size)
-#define ARM_FILL(value, out, size)		arm_fill_q31(value, out, size)
-#define ARM_ADD(in1, in2, out, size)	arm_add_q31(in1, in2, out, size)
+#define ARM_RFFT_INSTANCE               			  arm_rfft_instance_q31
+#define ARM_CFFT_RADIX4_INSTANCE 					  arm_cfft_radix4_instance_q31
+#define ARM_COPY(in, out, size)         			  arm_copy_q31(in, out, size)
+#define ARM_RFFT_INIT(rfftInstancePtr, size) 		  arm_rfft_init_q31(rfftInstancePtr, size, 0, 1)
+#define ARM_RFFT(instance, in, out)     			  arm_rfft_q31(instance, in, out)
+#define ARM_SHIFT(in, shift, out, size) 			  arm_shift_q31(in, shift, out, size)
+#define ARM_FILL(value, out, size)					  arm_fill_q31(value, out, size)
+#define ARM_ADD(in1, in2, out, size)				  arm_add_q31(in1, in2, out, size)
+#define ARM_MAX(in, size, resultMaxVal, resultMaxIdx) arm_max_q31(in, size, resultMaxVal, resultMaxIdx)
+#define ARM_ABS(in, out, size)						  arm_abs_q31(in, out, size)
 
 #else
 
 #define UINT uint16_t
 #define Q    q15_t
-#define ARM_RFFT_INSTANCE               arm_rfft_instance_q15
-#define ARM_CFFT_RADIX4_INSTANCE arm_cfft_radix4_instance_q15
-#define ARM_COPY(in, out, size)         arm_copy_q15(in, out, size)
-#define ARM_RFFT_INIT(rfftInstancePtr, size) arm_rfft_init_q15(rfftInstancePtr, size, 0, 1)
-#define ARM_RFFT(instance, in, out)     arm_rfft_q15(instance, in, out)
-#define ARM_SHIFT(in, shift, out, size) arm_shift_q15(in, shift, out, size)
-#define ARM_FILL(value, out, size)		arm_fill_q15(value, out, size)
-#define ARM_ADD(in1, in2, out, size)	arm_add_q15(in1, in2, out, size)
+#define ARM_RFFT_INSTANCE               			  arm_rfft_instance_q15
+#define ARM_CFFT_RADIX4_INSTANCE			          arm_cfft_radix4_instance_q15
+#define ARM_COPY(in, out, size)         			  arm_copy_q15(in, out, size)
+#define ARM_RFFT_INIT(rfftInstancePtr, size) 		  arm_rfft_init_q15(rfftInstancePtr, size, 0, 1)
+#define ARM_RFFT(instance, in, out)    				  arm_rfft_q15(instance, in, out)
+#define ARM_SHIFT(in, shift, out, size) 			  arm_shift_q15(in, shift, out, size)
+#define ARM_FILL(value, out, size)					  arm_fill_q15(value, out, size)
+#define ARM_ADD(in1, in2, out, size)				  arm_add_q15(in1, in2, out, size)
+#define ARM_MAX(in, size, resultMaxVal, resultMaxIdx) arm_max_q15(in, size, resultMaxVal, resultMaxIdx)
+#define ARM_ABS(in, out, size)						  arm_abs_q15(in, out, size)
 
 #endif
 

@@ -11,8 +11,14 @@
  * ------------------------------------------------------------
  * */
 
-static volatile DisplayWindowLinkedListNode * windowList = 0; // volatile in the hopes I can track it in debugger
-static volatile uint8_t numWindows = 0;
+extern AUDIO_BUFFER_T rxBuf[];
+
+static AUDIO_BUFFER_T testBuf[] = {0, 1, 2, 3, 4, 5, 6, 7};
+
+static volatile DisplayWindowLinkedListNode * visualsWindowList = 0; // volatile in the hopes I can track it in debugger
+static volatile uint8_t numVisualsWindows = 0;
+
+static DisplayWindowStruct visualsWindow1, visualsWindow2, visualsWindow3, visualsWindow4;
 
 static DisplayWindowStruct homeScreen, mainSettingsScreen, periphSettingsScreen,
 		viewSettingsScreen, periphButtonSettingsScreen, knobSettingsScreen,
@@ -81,7 +87,7 @@ static void goToHomeScreen(void * action) {
 static void goToScreen(void * displayWindowVoidPtr) {
 	DisplayWindowStruct * displayWindow =
 			(DisplayWindowStruct*) displayWindowVoidPtr;
-	ILI9341_Fill(displayWindow->BackgroundColor);
+	fill(displayWindow->BackgroundColor);
 	displayWindow->MenuSelectionIdx = 0;
 	currentDisplayButtonPtr = displayWindow->Menu;
 	currentDisplayWindowPtr = displayWindow;
@@ -89,7 +95,13 @@ static void goToScreen(void * displayWindowVoidPtr) {
 }
 
 /* since this is (potentially) multiple window structs on the display, it functions differently from above funcs */
-static void goToViewScreen(void * action) {}
+static void goToViewScreen(void * action) {
+	DisplayWindowLinkedListNode * currentWindowListNode = visualsWindowList;
+	for (int i = 0; i < numVisualsWindows; i++) {
+		drawDisplayWindow(currentWindowListNode->Window);
+		currentWindowListNode = currentWindowListNode->Next;
+	}
+}
 
 static void setPeriphButtonToFuzzControl(void * periphButtonVoidPtr) {
 	ButtonConfigStruct * periphButton =
@@ -105,20 +117,28 @@ static void toggleRAMEnable(void * action) {}
  * ----------------------------------------------------------------------
  * */
 
-void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height) {
+void drawPlotData(AUDIO_BUFFER_PTR_T data, uint16_t dataLength, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height) {
+	if (dataLength < 2) return;
 	int i;
 	float hStep, vStep;
-	hStep = width / size; // height corresponds to longer length
-	/*
-	 * Because keeping track of the amplitude of an array is tedious and inefficient, I use a ratio of window height vs
-	 * WORST-CASE amplitude (ie, maximum unsigned value data can be, which is (1 << (AUDIO_DATA_SIZE - 1)) - 1)
-	 *
-	 * WARNING, if data is much less than MAX, will be truncated to zero
-	 * */
-	vStep = height / (1 << (AUDIO_DATA_SIZE - 1));
+	AUDIO_BUFFER_T * dataCopy, * dataAbs, * dataMaxValPtr, * dataMaxIdxPtr;
+	/* copy buffer, since the original could be changed before computation/plotting finishes */
+	ARM_COPY(data, dataCopy, dataLength);
+	hStep = width / (dataLength-1); // height corresponds to longer length
+	/* use max val of abs(array) to calculate amplitude */
+	ARM_ABS(dataCopy, dataAbs, dataLength);
+	ARM_MAX(dataAbs, dataLength, dataMaxValPtr, dataMaxIdxPtr);
+	/* height = peak-to-peak, but values are expressed in terms of distance from x-axis */
+	vStep = (height>>1) / (*dataMaxValPtr);
 	y0 += height>>1;
-	for (i = 0; i < size-1; i++) {
-		ILI9341_drawLine(x0 + i*hStep, y0 + (int16_t)(data[i]*vStep), x0 + (i+1)*hStep, y0 + (int16_t)(data[i+1]*vStep), color);
+	/* because x and y coordinates increase further down the display,
+	 * we SUBTRACT values from the x-axis, to make the plot move upwards
+	 * for positive values
+	 *
+	 * TODO: verify this holds for all screen orientations
+	 */
+	for (i = 0; i < dataLength-1; i++) {
+		drawLine(x0 - i*hStep, y0 - (int16_t)(dataCopy[i]*vStep), x0 - (i+1)*hStep, y0 - (int16_t)(dataCopy[i+1]*vStep), color);
 	}
 }
 
@@ -130,30 +150,33 @@ void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16
 void refreshPlot(DisplayWindowStruct * w, AUDIO_BUFFER_PTR_T newData) {
 	DisplayPlotStruct * p = w->Plot;
 	if (p->Data) // if current data is null, skip drawing over it
-	drawDataWave(p->Data, p->Length, p->BackgroundColor, w->X, w->Y, w->Width, w->Height);
-	drawDataWave(newData, p->Length, p->DataColor, w->X, w->Y, w->Width, w->Height);
+	drawPlotData(p->Data, p->Length, p->BackgroundColor, w->X, w->Y, w->Width, w->Height);
+	drawPlotData(newData, p->Length, p->DataColor, w->X, w->Y, w->Width, w->Height);
 	w->Plot->Data = newData;
 }
 
-void drawDisplayPlot(DisplayPlotStruct * plot) {}
+void drawDisplayPlot(DisplayPlotStruct * plot, uint16_t x, uint16_t y, uint16_t width, uint16_t height) {
+	drawPlotData(plot->Data, plot->Length, plot->DataColor, x, y, width, height);
+}
 
 void drawDisplayButton(DisplayButtonStruct * displayButton) {
-	uint16_t x0, y0, x1, y1;
+	uint16_t x0, y0, x1, y1, bgColor, txtColor;
 	/* draw and fill rectangle */
 	x0 = displayButton->X;
 	x1 = x0 + displayButton->Width;
 	y0 = displayButton->Y;
 	y1 = y0 + displayButton->Height;
+	bgColor = displayButton->BackgroundColor;
+	txtColor = displayButton->BorderAndTextColor;
 #if RECTANGULAR_DISPLAY_BUTTONS
-	ILI9341_Fill_Rect(x0, y0, x1, y1, displayButton->BackgroundColor);
-	ILI9341_drawRect(x0, y0, x1, y1, displayButton->BorderAndTextColor);
+	fillRect(x0, y0, x1, y1, bgColor);
+	drawRect(x0, y0, x1, y1, txtColor);
 #else
 	drawDisplayButtonBorder(x0, y0, x1, y1, displayButton->BackgroundColor);
 #endif
 	/* print text */
-	ILI9341_printText(displayButton->Text, x0 + displayButton->TextXOffset,
-			y0 + displayButton->TextYOffset, displayButton->BorderAndTextColor,
-			displayButton->BackgroundColor, displayButton->FontSize);
+	printText(displayButton->Text, x0 + displayButton->TextXOffset,
+			y0 + displayButton->TextYOffset, txtColor, bgColor, displayButton->FontSize);
 }
 
 static void highlightDisplayButton(DisplayButtonStruct * displayButton) {
@@ -165,36 +188,41 @@ static void highlightDisplayButton(DisplayButtonStruct * displayButton) {
 
 void drawDisplayWindow(DisplayWindowStruct * displayWindow) {
 	uint16_t x0, y0, x1, y1;
+	uint8_t numButtons;
+	DisplayButtonStruct * menuPtr;
 	x0 = displayWindow->X;
 	y0 = displayWindow->Y;
 	x1 = x0 + displayWindow->Width;
 	y1 = y0 + displayWindow->Height;
-	ILI9341_Fill_Rect(x0, y0, x1, y1, displayWindow->BackgroundColor);
-	ILI9341_drawRect(x0, y0, x1, y1, displayWindow->BorderColor);
-	for (int i = 0; i < displayWindow->MenuSize; i++) {
+	fillRect(x0, y0, x1, y1, displayWindow->BackgroundColor);
+	drawRect(x0, y0, x1, y1, displayWindow->BorderColor);
+	menuPtr = displayWindow->Menu;
+	numButtons = displayWindow->MenuSize;
+	for (uint8_t i = 0; i < numButtons; i++) {
 		/*highlight first button*/
 		if (i==0) {
-			highlightDisplayButton(displayWindow->Menu + i);
+			highlightDisplayButton(menuPtr);
 		} else {
-			drawDisplayButton(displayWindow->Menu + i);
+			drawDisplayButton(menuPtr);
 		}
+		menuPtr++;
 	}
 	if (displayWindow->Plot) {
-		drawDisplayPlot(displayWindow->Plot);
+		drawDisplayPlot(displayWindow->Plot, displayWindow->X, displayWindow->Y, displayWindow->Width, displayWindow->Height);
 	}
 }
 
 /* NOTE: assumes MAX_WINDOWS is 4 */
 static void refreshDisplays() {
-	ILI9341_Fill(HOME_SCREEN_BACKGROUND_COLOR); // clear screen
-	if (!numWindows)
+	fill(HOME_SCREEN_BACKGROUND_COLOR); // clear screen
+	if (!numVisualsWindows)
 		return;
 	// go back thru list and update orientation parameters in each window
-	volatile DisplayWindowLinkedListNode * current = windowList;
+	volatile DisplayWindowLinkedListNode * current = visualsWindowList;
 	uint16_t width, height;
-	width = WIDTH >> ((numWindows - 1) >> 1); // only compress width if numWindows > 3
-	height = HEIGHT >> (numWindows > 1); // only compress if numWindows > 1
-	for (int i = 0; i < numWindows; i++) {
+	width = WIDTH >> ((numVisualsWindows - 1) >> 1); // only compress width if numVisualWindows > 3
+	height = HEIGHT >> (numVisualsWindows > 1); // only compress if numVisualWindows > 1
+	for (int i = 0; i < numVisualsWindows; i++) {
 		DisplayWindowStruct * currentWindow = current->Window;
 		currentWindow->X = width * (i > 1);
 		currentWindow->Y = height * (i % 2);
@@ -213,46 +241,46 @@ static void refreshDisplays() {
  */
 
 void addWindow(DisplayWindowStruct * w) {
-	//assert(numWindows < MAX_WINDOWS - 1);
+	//assert(numVisualWindows < MAX_WINDOWS - 1);
 	DisplayWindowLinkedListNode * newDisplayWindowLinkedListNode =
 			(DisplayWindowLinkedListNode *) malloc(
 					sizeof(DisplayWindowLinkedListNode));
 	newDisplayWindowLinkedListNode->Window = w;
 	newDisplayWindowLinkedListNode->Next = 0;
-	if (!numWindows) {
-		windowList = newDisplayWindowLinkedListNode;
+	if (!numVisualsWindows) {
+		visualsWindowList = newDisplayWindowLinkedListNode;
 	} else {
-		DisplayWindowLinkedListNode * current = windowList;
+		DisplayWindowLinkedListNode * current = visualsWindowList;
 		while (current->Next) {
 			current = current->Next;
 		}
 		current->Next = newDisplayWindowLinkedListNode;
 	}
-	numWindows++;
-	refreshDisplays();
+	numVisualsWindows++;
+	//refreshDisplays();
 }
 
 void deleteWindow(uint8_t idx) {
-	//assert(idx < numWindows);
+	//assert(idx < numVisualWindows);
 	if (!idx) { // if first window, move head to next node
-		if (numWindows == 1) {
-			windowList = 0; // null
+		if (numVisualsWindows == 1) {
+			visualsWindowList = 0; // null
 		} else {
-			windowList = windowList->Next;
+			visualsWindowList = visualsWindowList->Next;
 		}
 	}
-	DisplayWindowLinkedListNode * prev = windowList;
+	DisplayWindowLinkedListNode * prev = visualsWindowList;
 	for (int i = 0; i < idx - 1; i++) { // go to node directly preceding the one we want to delete
 		prev = prev->Next;
 	}
 	prev->Next = prev->Next->Next;
-	numWindows--;
+	numVisualsWindows--;
 	refreshDisplays();
 }
 
 /* WARNING: this function probably doesn't work right now */
 void swapWindows(uint8_t idx1, uint8_t idx2) {
-	//assert(numWindows > 1 && idx1!=idx2 && idx1 < numWindows && idx2 < numWindows);
+	//assert(numVisualWindows > 1 && idx1!=idx2 && idx1 < numVisualWindows && idx2 < numVisualWindows);
 	uint8_t tmp;
 	if (idx1 > idx2) {
 		tmp = idx2;
@@ -260,7 +288,7 @@ void swapWindows(uint8_t idx1, uint8_t idx2) {
 		idx1 = tmp;
 	}
 	DisplayWindowLinkedListNode * w1, *w2, *w1Prev, *w2Prev, *wTmp;
-	wTmp = windowList;
+	wTmp = visualsWindowList;
 	w1 = wTmp;
 	for (int i = 0; i < idx2; i++) {
 		if (i == idx1 - 1) {
@@ -274,7 +302,7 @@ void swapWindows(uint8_t idx1, uint8_t idx2) {
 	if (w1Prev) {
 		w1Prev->Next = w2;
 	} else {
-		windowList = w2;
+		visualsWindowList = w2;
 	}
 	w2Prev->Next = w1;
 	wTmp = w1->Next;
@@ -523,13 +551,23 @@ static void initAllItems() {
 	initMainSettingsScreen();
 	/* home screen */
 	initHomeScreen();
+
+	/* init default visual window */
+	INIT_DISPLAY_WINDOW_DEFAULT(visualsWindow1);
+	visualsWindow1.Plot = (DisplayPlotStruct*)malloc(sizeof(DisplayPlotStruct));
+	INIT_DISPLAY_PLOT_DEFAULT(*(visualsWindow1.Plot));
+	visualsWindow1.Plot->Length = 8;//AUDIO_BUFFER_LENGTH;
+	visualsWindow1.Plot->Data = (AUDIO_BUFFER_PTR_T)&testBuf;
+	addWindow(&visualsWindow1);
 }
 
 void displayInterfaceInit() {
 	initAllItems();
 
-	ILI9341_Init();
-	ILI9341_setRotation(SCREEN_ORIENTATION);
+	ILI9341_init();
+	setRotation(SCREEN_ORIENTATION);
+
+	//invertRows(HEIGHT>>1, HEIGHT-1);
 
 	goToHomeScreen((void*)0);
 }

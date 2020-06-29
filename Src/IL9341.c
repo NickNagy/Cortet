@@ -1,59 +1,51 @@
 /*
-Library:						TFT 2.4" LCD - ili9341
-Written by:					Mohamed Yaqoob (Not from scratch, but referring to many open source libraries)
-Date written:				20/01/2018
-
-Description:				This library makes use of the FSMC interface of the STM32 board to control a TFT LCD.
-										The concept shown here is exactly the same for other TFT LCDs, might need to use 16 bits for
-										some LCDs, but the method is similar.
-										You can use this as a starting point to program your own LCD and share it with us ;) 
+ * This file was grabbed from https://drive.google.com/file/d/1f4WZ3Bz8Tb-dCiqacXoX_CF3trXw5EcH/view and was originally written by Mohamed Yaqoob,
+ * whom in turn referred a variety of open-source libraries.
+ * I have since added/modified a lot of the functions but register macros were pre-defined (and can also be verified by the ILI9341 datasheet)
+ *
 */
 
-//Header files
-#include "MA_ILI9341.h"
+#include "ILI9341.h"
 
 static uint8_t rotationNum=1;
 static bool _cp437    = false;
 
-//***** Functions prototypes *****//
-//1. Write Command to LCD
-/*void ILI9341_SEND_COMMAND(uint8_t com)
-{
-	*(__IO uint8_t *)(0xC0000000) = com;
-}
-
-//2. Write data to LCD
-void ILI9341_SEND_DATA(uint8_t data)
-{
-	*(__IO uint8_t *)(0xC0040000) = data;
-}*/
-
-// TODO: verify &0xFF
-void ILI9341_WriteRegister16(uint8_t r, uint16_t d) {
+static void ILI9341_writeRegister16(uint8_t r, uint16_t d) {
 	ILI9341_SEND_COMMAND(r);
 	ILI9341_SEND_DATA(d >> 8);
-	ILI9341_SEND_DATA(d & 0xFF);
+	ILI9341_SEND_DATA(d);
 }
 
-void ILI9341_WriteRegister32(uint8_t r, uint32_t d) {
+static void ILI9341_writeRegister32(uint8_t r, uint32_t d) {
 	ILI9341_SEND_COMMAND(r);
 	ILI9341_SEND_DATA(d >> 24);
 	ILI9341_SEND_DATA(d >> 16);
-	ILI9341_SEND_DATA(d >> 8);
-	ILI9341_SEND_DATA(d & 0xFF);
+	ILI9341_SEND_DATA((d >> 8));
+	ILI9341_SEND_DATA(d);
 }
 
-//3. Set cursor position
-void ILI9341_SetCursorPosition(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
+void ILI9341_setCursorPosition(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
   uint32_t t;
-  t = (x1 << 16) | x2;
-  ILI9341_WriteRegister32(ILI9341_COLUMN_ADDR, t);
-  t = (y1 << 16) | y2;
-  ILI9341_WriteRegister32(ILI9341_PAGE_ADDR, t);
+  t = (x0 << 16) | x1;
+  ILI9341_writeRegister32(ILI9341_COLUMN_ADDR, t);
+  t = (y0 << 16) | y1;
+  ILI9341_writeRegister32(ILI9341_PAGE_ADDR, t);
   ILI9341_SEND_COMMAND (ILI9341_GRAM);
 }
-//4. Initialise function
-void ILI9341_Init(void)
+
+/* inverts colors of given rows of screen */
+void ILI9341_invertRows(uint16_t y0, uint16_t y1) {
+	/* define partial area */
+	uint32_t t;
+	t = (y0 << 16) | y1;
+	ILI9341_writeRegister32(ILI9341_PARTIAL_AREA, t);
+	/* turn on partial mode */
+	ILI9341_SEND_COMMAND(ILI9341_PARTIAL_MODE_ON);
+	/* invert area */
+	ILI9341_SEND_COMMAND(ILI9341_DISPLAY_INVERSION_ON);
+}
+
+void ILI9341_init(void)
  {
    ExternalSRAMSpecStruct ILI9341Spec = {
 		   .dataSize = 8,
@@ -135,56 +127,55 @@ void ILI9341_Init(void)
    HAL_Delay(5);
  }
 
-//5. Write data to a single pixel
-void ILI9341_DrawPixel(uint16_t x, uint16_t y, uint16_t color) {
-  ILI9341_SetCursorPosition(x, y, x, y);
+void ILI9341_drawPixel(uint16_t x, uint16_t y, uint16_t color) {
+	ILI9341_setCursorPosition(x, y, x, y);
 	ILI9341_SEND_DATA(color>>8);
 	ILI9341_SEND_DATA(color&0xFF);
 }
-//6. Fill the entire screen with a background color
-void ILI9341_Fill(uint16_t color) {
+
+void ILI9341_fill(uint16_t color) {
 	uint32_t n = ILI9341_PIXEL_COUNT;
 	
 	if(rotationNum==1 || rotationNum==3)
 	{
-		ILI9341_SetCursorPosition(0, 0,   ILI9341_WIDTH -1, ILI9341_HEIGHT -1);
+		ILI9341_setCursorPosition(0, 0,   ILI9341_WIDTH -1, ILI9341_HEIGHT -1);
 	}
 	else if(rotationNum==2 || rotationNum==4)
 	{
-		ILI9341_SetCursorPosition(0, 0, ILI9341_HEIGHT -1, ILI9341_WIDTH -1);
+		ILI9341_setCursorPosition(0, 0, ILI9341_HEIGHT -1, ILI9341_WIDTH -1);
 	}
 	
 	while (n) {
-			n--;
+	   n--;
        ILI9341_SEND_DATA(color>>8);
-				ILI9341_SEND_DATA(color&0xff);
-	}
-}
-//7. Rectangle drawing functions
-void ILI9341_Fill_Rect(unsigned int x0,unsigned int y0, unsigned int x1,unsigned int y1, uint16_t color) { 
-	uint32_t n = ((x1+1)-x0)*((y1+1)-y0);
-	if (n>ILI9341_PIXEL_COUNT) n=ILI9341_PIXEL_COUNT;
-	ILI9341_SetCursorPosition(x0, y0, x1, y1);
-	while (n) {
-			n--;
-      ILI9341_SEND_DATA(color>>8);
-				ILI9341_SEND_DATA(color&0xff);
+	   ILI9341_SEND_DATA(color&0xff);
 	}
 }
 
-//8. Circle drawing functions
-void ILI9341_drawCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color)
+/* assumes x1>x0 and y1>y0 */
+void ILI9341_fillRect(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color) {
+	uint32_t n = ((x1+1)-x0)*((y1+1)-y0);
+	if (n>ILI9341_PIXEL_COUNT) n=ILI9341_PIXEL_COUNT;
+	ILI9341_setCursorPosition(x0, y0, x1, y1);
+	while (n) {
+			n--;
+			ILI9341_SEND_DATA(color>>8);
+			ILI9341_SEND_DATA(color&0xff);
+	}
+}
+
+void ILI9341_drawCircle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color)
 {
-	int16_t f = 1 - r;
+  int16_t f = 1 - r;
   int16_t ddF_x = 1;
   int16_t ddF_y = -2 * r;
   int16_t x = 0;
   int16_t y = r;
 
-  ILI9341_DrawPixel(x0  , y0+r, color);
-  ILI9341_DrawPixel(x0  , y0-r, color);
-  ILI9341_DrawPixel(x0+r, y0  , color);
-  ILI9341_DrawPixel(x0-r, y0  , color);
+  ILI9341_drawPixel(x0  , y0+r, color);
+  ILI9341_drawPixel(x0  , y0-r, color);
+  ILI9341_drawPixel(x0+r, y0  , color);
+  ILI9341_drawPixel(x0-r, y0  , color);
 
   while (x<y) {
     if (f >= 0) {
@@ -196,17 +187,18 @@ void ILI9341_drawCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color)
     ddF_x += 2;
     f += ddF_x;
   
-    ILI9341_DrawPixel(x0 + x, y0 + y, color);
-    ILI9341_DrawPixel(x0 - x, y0 + y, color);
-    ILI9341_DrawPixel(x0 + x, y0 - y, color);
-    ILI9341_DrawPixel(x0 - x, y0 - y, color);
-    ILI9341_DrawPixel(x0 + y, y0 + x, color);
-    ILI9341_DrawPixel(x0 - y, y0 + x, color);
-    ILI9341_DrawPixel(x0 + y, y0 - x, color);
-    ILI9341_DrawPixel(x0 - y, y0 - x, color);
+    ILI9341_drawPixel(x0 + x, y0 + y, color);
+    ILI9341_drawPixel(x0 - x, y0 + y, color);
+    ILI9341_drawPixel(x0 + x, y0 - y, color);
+    ILI9341_drawPixel(x0 - x, y0 - y, color);
+    ILI9341_drawPixel(x0 + y, y0 + x, color);
+    ILI9341_drawPixel(x0 - y, y0 + x, color);
+    ILI9341_drawPixel(x0 + y, y0 - x, color);
+    ILI9341_drawPixel(x0 - y, y0 - x, color);
   }
 }
-static void drawCircleHelper( int16_t x0, int16_t y0, int16_t r, uint8_t cornername, uint16_t color)
+
+static void drawCircleHelper(uint16_t x0, uint16_t y0, uint16_t r, uint8_t cornername, uint16_t color)
 {
 	int16_t f     = 1 - r;
   int16_t ddF_x = 1;
@@ -224,26 +216,26 @@ static void drawCircleHelper( int16_t x0, int16_t y0, int16_t r, uint8_t cornern
     ddF_x += 2;
     f     += ddF_x;
     if (cornername & 0x4) {
-      ILI9341_DrawPixel(x0 + x, y0 + y, color);
-      ILI9341_DrawPixel(x0 + y, y0 + x, color);
+      ILI9341_drawPixel(x0 + x, y0 + y, color);
+      ILI9341_drawPixel(x0 + y, y0 + x, color);
     } 
     if (cornername & 0x2) {
-      ILI9341_DrawPixel(x0 + x, y0 - y, color);
-      ILI9341_DrawPixel(x0 + y, y0 - x, color);
+      ILI9341_drawPixel(x0 + x, y0 - y, color);
+      ILI9341_drawPixel(x0 + y, y0 - x, color);
     }
     if (cornername & 0x8) {
-      ILI9341_DrawPixel(x0 - y, y0 + x, color);
-      ILI9341_DrawPixel(x0 - x, y0 + y, color);
+      ILI9341_drawPixel(x0 - y, y0 + x, color);
+      ILI9341_drawPixel(x0 - x, y0 + y, color);
     }
     if (cornername & 0x1) {
-      ILI9341_DrawPixel(x0 - y, y0 - x, color);
-      ILI9341_DrawPixel(x0 - x, y0 - y, color);
+      ILI9341_drawPixel(x0 - y, y0 - x, color);
+      ILI9341_drawPixel(x0 - x, y0 - y, color);
     }
   }
 }
-static void fillCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, int16_t delta, uint16_t color)
+static void fillCircleHelper(uint16_t x0, uint16_t y0, uint16_t r, uint8_t cornername, uint16_t delta, uint16_t color)
 {
-	int16_t f     = 1 - r;
+  int16_t f     = 1 - r;
   int16_t ddF_x = 1;
   int16_t ddF_y = -2 * r;
   int16_t x     = 0;
@@ -269,16 +261,16 @@ static void fillCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornerna
     }
   }
 }
-void ILI9341_fillCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color)
+
+void ILI9341_fillCircle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color)
 {
-	ILI9341_drawFastVLine(x0, y0-r, 2*r+1, color);
+  ILI9341_drawFastVLine(x0, y0-r, 2*r+1, color);
   fillCircleHelper(x0, y0, r, 3, 0, color);
 }
 
-//9. Line drawing functions
-void ILI9341_drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
+void ILI9341_drawLine(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color)
 {
-	int16_t steep = abs(y1 - y0) > abs(x1 - x0);
+  int16_t steep = abs(y1 - y0) > abs(x1 - x0);
   if (steep) {
     swap(x0, y0);
     swap(x1, y1);
@@ -289,11 +281,11 @@ void ILI9341_drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c
     swap(y0, y1);
   }
 
-  int16_t dx, dy;
+  uint16_t dx, dy;
   dx = x1 - x0;
   dy = abs(y1 - y0);
 
-  int16_t err = dx / 2;
+  int16_t err = dx>>1;
   int16_t ystep;
 
   if (y0 < y1) {
@@ -304,9 +296,9 @@ void ILI9341_drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c
 
   for (; x0<=x1; x0++) {
     if (steep) {
-      ILI9341_DrawPixel(y0, x0, color);
+      ILI9341_drawPixel(y0, x0, color);
     } else {
-      ILI9341_DrawPixel(x0, y0, color);
+      ILI9341_drawPixel(x0, y0, color);
     }
     err -= dy;
     if (err < 0) {
@@ -316,30 +308,31 @@ void ILI9341_drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t c
   }
 }	
 
-void ILI9341_drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color)
+void ILI9341_drawFastHLine(uint16_t x, uint16_t y, uint16_t w, uint16_t color)
 {
 	ILI9341_drawLine(x, y, x+w-1, y, color);
 }
 
-void ILI9341_drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color)
+void ILI9341_drawFastVLine(uint16_t x, uint16_t y, uint16_t h, uint16_t color)
 {
 	ILI9341_drawLine(x, y, x, y+h-1, color);
 }
 
-void ILI9341_drawRect(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color) {
+void ILI9341_drawRect(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color) {
 	ILI9341_drawFastHLine(x0, y0, x1-x0, color);
 	ILI9341_drawFastVLine(x0, y0, y1-y0, color);
 	ILI9341_drawFastHLine(x0, y1, x1-x0, color);
 	ILI9341_drawFastVLine(x1, y0, y1-y0, color);
 }
 
-//10. Triangle drawing
-void ILI9341_drawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color)
+void ILI9341_drawTriangle(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color)
 {
-	ILI9341_drawLine(x0, y0, x1, y1, color);
+  ILI9341_drawLine(x0, y0, x1, y1, color);
   ILI9341_drawLine(x1, y1, x2, y2, color);
   ILI9341_drawLine(x2, y2, x0, y0, color);
 }
+
+/* left params as signed ints just to reaffirm logic inside function */
 void ILI9341_fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color)
 {
 	int16_t a, b, y, last;
@@ -409,8 +402,7 @@ void ILI9341_fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_
 	}
 }
 
-//11. Text printing functions
-void ILI9341_drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size)
+void ILI9341_drawChar(uint16_t x, uint16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size)
 {
 	if((x >= ILI9341_WIDTH)            || // Clip right
      (y >= ILI9341_HEIGHT)           || // Clip bottom
@@ -429,22 +421,23 @@ void ILI9341_drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uin
     for (int8_t j = 0; j<8; j++) {
       if (line & 0x1) {
         if (size == 1) // default size
-          ILI9341_DrawPixel(x+i, y+j, color);
+          ILI9341_drawPixel(x+i, y+j, color);
         else {  // big size
-          ILI9341_Fill_Rect(x+(i*size), y+(j*size), size + x+(i*size), size+1 + y+(j*size), color);
+          ILI9341_fillRect(x+(i*size), y+(j*size), size + x+(i*size), size+1 + y+(j*size), color);
         } 
       } else if (bg != color) {
         if (size == 1) // default size
-          ILI9341_DrawPixel(x+i, y+j, bg);
+          ILI9341_drawPixel(x+i, y+j, bg);
         else {  // big size
-          ILI9341_Fill_Rect(x+i*size, y+j*size, size + x+i*size, size+1 + y+j*size, bg);
+          ILI9341_fillRect(x+i*size, y+j*size, size + x+i*size, size+1 + y+j*size, bg);
         }
       }
       line >>= 1;
     }
   }
 }
-void ILI9341_printText(char text[], int16_t x, int16_t y, uint16_t color, uint16_t bg, uint8_t size)
+
+void ILI9341_printText(unsigned char text[], uint16_t x, uint16_t y, uint16_t color, uint16_t bg, uint8_t size)
 {
 	int16_t offset;
 	offset = size*6;
@@ -454,7 +447,6 @@ void ILI9341_printText(char text[], int16_t x, int16_t y, uint16_t color, uint16
 	}
 }
 
-//12. Image print (RGB 565, 2 bytes per pixel)
 void ILI9341_printImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t *data, uint32_t size)
 {
 	uint32_t n = size;
@@ -465,7 +457,6 @@ void ILI9341_printImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t 
 	}
 }
 
-//13. Set screen rotation
 void ILI9341_setRotation(uint8_t rotate)
 {
 	switch(rotate) {

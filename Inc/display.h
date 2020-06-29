@@ -2,7 +2,7 @@
 #define DISPLAY_H
 
 #include "stm32f7xx_hal.h"
-#include "MA_ILI9341.h"
+#include "ILI9341.h"
 #include "audio_config.h"
 #include "button.h"
 #include <stdio.h>
@@ -17,6 +17,25 @@
 #define WIDTH  ILI9341_HEIGHT
 #define HEIGHT ILI9341_WIDTH
 #endif
+
+
+/* for generalizing draw functions (in case program expands to run with different LCD interfaces) */
+#define drawRect       ILI9341_drawRect
+#define fillRect       ILI9341_fillRect
+#define fill	       ILI9341_fill
+#define drawCircle     ILI9341_drawCircle
+#define fillCircle     ILI9341_fillCircle
+#define drawTriangle   ILI9341_drawTriangle
+#define fillTriangle   ILI9341_fillTriangle
+#define drawLine	   ILI9341_drawLine
+#define drawFastHLine  ILI9341_drawFastHLine
+#define drawFastVLine  ILI9341_drawFastVLine
+#define drawPixel 	   ILI9341_drawPixel
+#define drawChar       ILI9341_drawChar
+#define printImage     ILI9341_printImage
+#define printText      ILI9341_printText
+#define setRotation    ILI9341_setRotation
+#define invertRows	   ILI9341_invertRows
 
 #define ANIMATION_FREQUENCY 24 // used for timer interrupt
 
@@ -72,7 +91,7 @@ typedef struct DisplayPlotStruct {
 	uint16_t TextColor;
 	char * PlotTitle;
 }DisplayPlotStruct;
-#define INIT_DISPLAY_PLOT_DEFAULT(x) x = (DisplayPlotStruct){.Data=0, .Length=0, .AxisColor=COLOR_GRAY, .BackgroundColor=COLOR_BLACK, .DataColor=COLOR_RED, .TextColor=COLOR_WHITE, .Title=""};
+#define INIT_DISPLAY_PLOT_DEFAULT(x) x = (DisplayPlotStruct){.Data=0, .Length=0, .AxisColor=COLOR_LGRAY, .BackgroundColor=COLOR_BLACK, .DataColor=COLOR_RED, .TextColor=COLOR_WHITE, .PlotTitle=""};
 
 typedef struct DisplayWindowStruct {
 	DisplayPlotStruct * Plot;
@@ -103,8 +122,8 @@ typedef struct DisplayWindowLinkedListNode {
 #define HOME_MENU_BACKGROUND_COLOR                     COLOR_BLACK
 #define HOME_MENU_TEXT_COLOR                           COLOR_WHITE
 #define HOME_MENU_ALIGNMENT							   DISPLAY_BUTTON_MID_CENTER_ALIGNMENT
-#define HOME_MENU_BUTTON_WIDTH						   80//MIN_TEXT_WIDTH
-#define HOME_MENU_BUTTON_HEIGHT						   20//MIN_TEXT_HEIGHT
+#define HOME_MENU_BUTTON_WIDTH						   160//MIN_TEXT_WIDTH
+#define HOME_MENU_BUTTON_HEIGHT						   40//MIN_TEXT_HEIGHT
 #define HOME_BUTTON_DEFAULT_STRUCT					   (DisplayButtonStruct){.X=0, .Y=0, .Width=HOME_MENU_BUTTON_WIDTH, .Height=HOME_MENU_BUTTON_HEIGHT, .FontSize=1, .BackgroundColor = HOME_MENU_BACKGROUND_COLOR, .BorderAndTextColor=HOME_MENU_TEXT_COLOR, .Text=""};
 #define HOME_SCREEN_DEFAULT_STRUCT                     (DisplayWindowStruct){.Plot=0, .Menu=0, .X=0, .Y=0, .MenuAlignment=HOME_MENU_ALIGNMENT, .Width=WIDTH, .Height=HEIGHT, .BackgroundColor=HOME_SCREEN_BACKGROUND_COLOR, .BorderColor=HOME_MENU_BACKGROUND_COLOR, .TextColor=HOME_SCREEN_TEXT_COLOR, .MenuSize=0, .MenuSelectionIdx = 0, .WindowTitle=""};
 /* main settings screen defaults */
@@ -113,7 +132,7 @@ typedef struct DisplayWindowLinkedListNode {
 #define MAIN_SETTINGS_MENU_BACKGROUND_COLOR            HOME_MENU_BACKGROUND_COLOR
 #define MAIN_SETTINGS_MENU_TEXT_COLOR	   		       HOME_MENU_TEXT_COLOR
 #define MAIN_SETTINGS_MENU_ALIGNMENT				   HOME_MENU_ALIGNMENT
-#define MAIN_SETTINGS_MENU_BUTTON_WIDTH				   120
+#define MAIN_SETTINGS_MENU_BUTTON_WIDTH				   HOME_MENU_BUTTON_WIDTH
 #define MAIN_SETTINGS_MENU_BUTTON_HEIGHT			   HOME_MENU_BUTTON_HEIGHT
 #define MAIN_SETTINGS_BUTTON_DEFAULT_STRUCT			   (DisplayButtonStruct){.X=0, .Y=0, .Width=MAIN_SETTINGS_MENU_BUTTON_WIDTH, .Height=MAIN_SETTINGS_MENU_BUTTON_HEIGHT, .FontSize=1, .BackgroundColor=MAIN_SETTINGS_MENU_BACKGROUND_COLOR, .BorderAndTextColor=MAIN_SETTINGS_MENU_TEXT_COLOR, .Text=""};
 #define MAIN_SETTINGS_SCREEN_DEFAULT_STRUCT			   (DisplayWindowStruct){.X=0, .Y=0, .Width=WIDTH, .Height=HEIGHT, .Plot=0, .Menu=0, .MenuAlignment=MAIN_SETTINGS_MENU_ALIGNMENT, .BackgroundColor=MAIN_SETTINGS_SCREEN_BACKGROUND_COLOR, .BorderColor=MAIN_SETTINGS_MENU_BACKGROUND_COLOR, .TextColor=MAIN_SETTINGS_SCREEN_TEXT_COLOR, .MenuSize=0, .MenuSelectionIdx=0, .WindowTitle=""};
@@ -153,9 +172,9 @@ void deleteWindow(uint8_t idx);
 void swapWindows(uint8_t idx1, uint8_t idx2);
 
 /* draw functions */
-void drawDataWave(AUDIO_BUFFER_PTR_T data, uint16_t size, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height);
+void drawPlotData(AUDIO_BUFFER_PTR_T data, uint16_t dataLength, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height);
 void refreshPlot(DisplayWindowStruct * w, AUDIO_BUFFER_PTR_T newData);
-void drawDisplayPlot(DisplayPlotStruct * plot);
+void drawDisplayPlot(DisplayPlotStruct * plot, uint16_t x, uint16_t y, uint16_t width, uint16_t height);
 static void drawDisplayButtonBorder(uint16_t x0, uint16_t y0, uint16_t x1,
 		uint16_t y1, uint16_t color);
 void drawDisplayButton(DisplayButtonStruct * displayButton);

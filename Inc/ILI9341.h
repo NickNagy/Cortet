@@ -1,12 +1,8 @@
 /*
-Library:						TFT 2.4" LCD - ili9341
-Written by:					Mohamed Yaqoob (Not from scratch, but referring to many open source libraries)
-Date written:				20/01/2018
-
-Description:				This library makes use of the FSMC interface of the STM32 board to control a TFT LCD.
-										The concept shown here is exactly the same for other TFT LCDs, might need to use 16 bits for
-										some LCDs, but the method is similar.
-										You can use this as a starting point to program your own LCD and share it with us ;) 
+ * This file was grabbed from https://drive.google.com/file/d/1f4WZ3Bz8Tb-dCiqacXoX_CF3trXw5EcH/view and was originally written by Mohamed Yaqoob,
+ * whom in turn referred a variety of open-source libraries.
+ * I have since added/modified a lot of the functions but register macros were pre-defined (and can also be verified by the ILI9341 datasheet)
+ *
 */
 
 
@@ -15,7 +11,7 @@ Description:				This library makes use of the FSMC interface of the STM32 board 
 //#include "stm32f7xx_hal.h"
 #include <stdlib.h>
 #include <stdio.h>
-#include "fmc.h"
+#include "../Inc/fmc.h"
 
 #define ILI9341_SRAM_BANK 1
 #define ILI9341_Ax		 18
@@ -93,6 +89,10 @@ PD5   ------> FMC_NWE
 #define ILI9341_INTERFACE					0xF6
 #define ILI9341_PRC				   	  	0xF7
 #define ILI9341_VERTICAL_SCROLL 	0x33
+#define ILI9341_PARTIAL_MODE_ON		0x12
+#define ILI9341_PARTIAL_AREA		0x30
+#define ILI9341_DISPLAY_INVERSION_ON		0x21
+#define ILI9341_DISPLAY_INVERSION_OFF		0x20
 
 #define ILI9341_MEMCONTROL         0x36
 #define ILI9341_MADCTL_MY  0x80
@@ -398,38 +398,39 @@ const unsigned char font1[] = {
 //2. Write data to LCD
 //void ILI9341_SendData(uint8_t data);
 
-void ILI9341_WriteRegister16(uint8_t r, uint16_t d);
-void ILI9341_WriteRegister32(uint8_t r, uint32_t d);
+static void ILI9341_writeRegister16(uint8_t r, uint16_t d);
+static void ILI9341_writeRegister32(uint8_t r, uint32_t d);
 
-//3. Set cursor position
-void ILI9341_SetCursorPosition(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
-//4. Initialise function
-void ILI9341_Init(void);
-//5. Write data to a single pixel
-void ILI9341_DrawPixel(uint16_t x, uint16_t y, uint16_t color); //Draw single pixel to ILI9341
-//6. Fill the entire screen with a background color
-void ILI9341_Fill(uint16_t color); //Fill entire ILI9341 with color
-//7. Rectangle drawing functions
-void ILI9341_Fill_Rect(unsigned int x0, unsigned int y0, unsigned int x1, unsigned int y1, uint16_t color);
-//8. Circle drawing functions
-void ILI9341_drawCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color);
-static void drawCircleHelper( int16_t x0, int16_t y0, int16_t r, uint8_t cornername, uint16_t color);
-static void fillCircleHelper(int16_t x0, int16_t y0, int16_t r, uint8_t cornername, int16_t delta, uint16_t color);
-void ILI9341_fillCircle(int16_t x0, int16_t y0, int16_t r, uint16_t color);
-//9. Line drawing functions
-void ILI9341_drawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
-void ILI9341_drawFastHLine(int16_t x, int16_t y, int16_t w, uint16_t color);
-void ILI9341_drawFastVLine(int16_t x, int16_t y, int16_t h, uint16_t color);
+void ILI9341_setCursorPosition(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1);
 
-void ILI9341_drawRect(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
+/* inverts colors of given rows of screen */
+void ILI9341_invertRows(uint16_t y0, uint16_t y1);
 
-//10. Triangle drawing
-void ILI9341_drawTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color);
+void ILI9341_init(void);
+
+void ILI9341_drawPixel(uint16_t x, uint16_t y, uint16_t color);
+
+void ILI9341_fill(uint16_t color);
+
+void ILI9341_fillRect(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color);
+
+void ILI9341_drawCircle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color);
+static void drawCircleHelper(uint16_t x0, uint16_t y0, uint16_t r, uint8_t cornername, uint16_t color);
+static void fillCircleHelper(uint16_t x0, uint16_t y0, uint16_t r, uint8_t cornername, uint16_t delta, uint16_t color);
+void ILI9341_fillCircle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color);
+
+void ILI9341_drawLine(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color);
+void ILI9341_drawFastHLine(uint16_t x, uint16_t y, uint16_t w, uint16_t color);
+void ILI9341_drawFastVLine(uint16_t x, uint16_t y, uint16_t h, uint16_t color);
+
+void ILI9341_drawRect(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color);
+
+void ILI9341_drawTriangle(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 void ILI9341_fillTriangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint16_t color);
-//11. Text printing functions
-void ILI9341_drawChar(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size);
-void ILI9341_printText(char text[], int16_t x, int16_t y, uint16_t color, uint16_t bg, uint8_t size);
-//12. Image print (RGB 565, 2 bytes per pixel)
+
+void ILI9341_drawChar(uint16_t x, uint16_t y, unsigned char c, uint16_t color, uint16_t bg, uint8_t size);
+void ILI9341_printText(unsigned char text[], uint16_t x, uint16_t y, uint16_t color, uint16_t bg, uint8_t size);
+
 void ILI9341_printImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t *data, uint32_t size);
-//13. Set screen rotation
+
 void ILI9341_setRotation(uint8_t rotate);

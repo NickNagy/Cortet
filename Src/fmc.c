@@ -76,8 +76,8 @@ void FMCSRAMInit(ExternalSRAMSpecStruct * sramSpec, uint8_t bank) {
 	timing.BusTurnAroundDuration = 0;
 	timing.AccessMode = FMC_ACCESS_MODE_A;
 
-	timing.AddressSetupTime = MAX_ADDSET_TIME; //6;
-	timing.DataSetupTime = MAX_DATAST_TIME;//6;
+	timing.AddressSetupTime = 6; //MAX_ADDSET_TIME;
+	timing.DataSetupTime = 6;//MAX_DATAST_TIME;
 
 	//FMCComputeAddsetDatast(sramSpec, &timing);
 

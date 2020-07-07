@@ -12,7 +12,7 @@
  * */
 
 extern AUDIO_BUFFER_T rxBuf[];
-
+extern AUDIO_BUFFER_T hiddenBuf[];
 static AUDIO_BUFFER_T testBuf[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
 static volatile DisplayWindowLinkedListNode * visualsWindowList = 0; // volatile in the hopes I can track it in debugger
@@ -25,12 +25,12 @@ static DisplayWindowStruct homeScreen, mainSettingsScreen, periphSettingsScreen,
 		switchSettingsScreen, windowSettingsScreen;
 static DisplayButtonStruct returnHomeButton;
 
-static DisplayWindowStruct * currentDisplayWindowPtr; // points to whatever window is currently on the screen
-static DisplayButtonStruct * currentDisplayButtonPtr; // points to whatever button is currently selected
+static DisplayWindowStruct * currentDisplayWindowPtr = 0; // points to whatever window is currently on the screen
+static DisplayButtonStruct * currentDisplayButtonPtr = 0; // points to whatever button is currently selected
 
 /*
  * ----------------------------------------------------------------------------------------------------------------
- * ********************************************** EXTI FUNCTIONS **************************************************
+ * ********************************************** INTERRUPT FUNCTIONS **************************************************
  * ----------------------------------------------------------------------------------------------------------------
  */
 
@@ -74,6 +74,12 @@ void selectCurrentDisplayButton() {
 	currentDisplayButtonPtr->Action(currentDisplayButtonPtr->ActionItem);
 }
 
+void updateLCDAnimation() {
+	if(currentDisplayWindowPtr != visualsWindowList->Window)
+		return;
+	refreshPlotData(visualsWindowList->Window);
+}
+
 /*
  * ----------------------------------------------------------------
  * ******************* BUTTON ACTION FUNCTIONS ********************
@@ -101,6 +107,7 @@ static void goToViewScreen(void * action) {
 		drawDisplayWindow(currentWindowListNode->Window);
 		currentWindowListNode = currentWindowListNode->Next;
 	}
+	currentDisplayWindowPtr = visualsWindowList->Window;
 }
 
 static void setPeriphButtonToFuzzControl(void * periphButtonVoidPtr) {
@@ -120,25 +127,33 @@ static void toggleRAMEnable(void * action) {}
 void drawPlotData(AUDIO_BUFFER_PTR_T data, uint16_t dataLength, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height) {
 	if (dataLength < 2) return;
 	int i;
-	float hStep, vStep;
-	AUDIO_BUFFER_T * dataCopy, * dataAbs, * dataMaxValPtr, * dataMaxIdxPtr;
-	/* copy buffer, since the original could be changed before computation/plotting finishes */
-	ARM_COPY(data, dataCopy, dataLength);
+	float hStep;
+	volatile float vStep; // for debugging
 	hStep = width / (dataLength-1); // height corresponds to longer length
+	/* data could be over-written at any time by the DMA controllers, so we copy it first */
+	AUDIO_BUFFER_T dataCopy[dataLength];
+	ARM_COPY(data, &dataCopy, dataLength);
+#if PLOT_DATA_FIT_TYPE == PLOT_DATA_FIT_TO_MAX_BUF_VAL
+	AUDIO_BUFFER_T dataAbs[dataLength];
+	AUDIO_BUFFER_T dataMaxVal, dataMaxIdx;
 	/* use max val of abs(array) to calculate amplitude */
-	ARM_ABS(dataCopy, dataAbs, dataLength);
-	ARM_MAX(dataAbs, dataLength, dataMaxValPtr, dataMaxIdxPtr);
+	ARM_ABS(&dataCopy, &dataAbs, dataLength);
+	ARM_MAX(&dataAbs, dataLength, &dataMaxVal, &dataMaxIdx);
 	/* height = peak-to-peak, but values are expressed in terms of distance from x-axis */
-	vStep = (height>>1) / (*dataMaxValPtr);
+	vStep = (height>>1) / (float)dataMaxVal;
+#elif PLOT_DATA_FIT_TYPE == PLOT_DATA_FIT_TO_MAX_POSSIBLE_VAL
+	vStep = (height>>1) / (float)DATA_MAX_POSSIBLE_VAL;
+#endif
 	y0 += height>>1;
 	/* because x and y coordinates increase further down the display,
 	 * we SUBTRACT values from the x-axis, to make the plot move upwards
 	 * for positive values
-	 *
-	 * TODO: verify this holds for all screen orientations
 	 */
+	volatile float startY, endY;// volatile for debugging
 	for (i = 0; i < dataLength-1; i++) {
-		drawLine(x0 - i*hStep, y0 - (int16_t)(dataCopy[i]*vStep), x0 - (i+1)*hStep, y0 - (int16_t)(dataCopy[i+1]*vStep), color);
+		startY = dataCopy[i]*vStep;
+		endY = dataCopy[i+1]*vStep;
+		drawLine(x0 + i*hStep, y0 - round(dataCopy[i]*vStep), x0 + (i+1)*hStep, y0 - round(dataCopy[i+1]*vStep), color);
 	}
 }
 
@@ -147,12 +162,17 @@ void drawPlotData(AUDIO_BUFFER_PTR_T data, uint16_t dataLength, uint16_t color, 
  * then draws the newBuffer on the screen in the DataColor
  * Resets plt->Data to point to newData
  * */
-void refreshPlot(DisplayWindowStruct * w, AUDIO_BUFFER_PTR_T newData) {
+static void refreshPlotData(DisplayWindowStruct * w) {
+	Q * dataNextPtr, * dataPtr;
 	DisplayPlotStruct * p = w->Plot;
-	if (p->Data) // if current data is null, skip drawing over it
-	drawPlotData(p->Data, p->Length, p->BackgroundColor, w->X, w->Y, w->Width, w->Height);
-	drawPlotData(newData, p->Length, p->DataColor, w->X, w->Y, w->Width, w->Height);
-	w->Plot->Data = newData;
+	dataNextPtr = (Q*)p->DataNext;
+	dataPtr = (Q*)p->Data;
+	if (p->Data) { // if current data is null, skip drawing over it
+		drawPlotData(p->Data, p->Length, p->BackgroundColor, w->X, w->Y, w->Width, w->Height);
+	}
+	drawPlotData(p->DataNext, p->Length, p->DataColor, w->X, w->Y, w->Width, w->Height);
+	/* copy DataNext into Data */
+	ARM_COPY(dataNextPtr, dataPtr, p->Length);
 }
 
 void drawDisplayPlot(DisplayPlotStruct * plot, uint16_t x, uint16_t y, uint16_t width, uint16_t height) {
@@ -536,6 +556,7 @@ static void initHomeScreen() {
 /* initialize all buttons and their operations, all menus, all windows */
 /* TODO: may crash b/c local variables */
 static void initAllItems() {
+
 	/* home button */
 	INIT_DISPLAY_BUTTON_DEFAULT(returnHomeButton);
 	returnHomeButton.Action = &goToHomeScreen;
@@ -557,7 +578,9 @@ static void initAllItems() {
 	visualsWindow1.Plot = (DisplayPlotStruct*)malloc(sizeof(DisplayPlotStruct));
 	INIT_DISPLAY_PLOT_DEFAULT(*(visualsWindow1.Plot));
 	visualsWindow1.Plot->Length = 8;//AUDIO_BUFFER_LENGTH;
-	visualsWindow1.Plot->Data = (AUDIO_BUFFER_PTR_T)&testBuf;
+	/* assign to NEXT data, b/c initialized, needs to be drawn */
+	visualsWindow1.Plot->Data = (AUDIO_BUFFER_PTR_T)malloc(visualsWindow1.Plot->Length*sizeof(AUDIO_BUFFER_T));
+	visualsWindow1.Plot->DataNext = (AUDIO_BUFFER_PTR_T)&testBuf;
 	addWindow(&visualsWindow1);
 }
 
@@ -569,5 +592,7 @@ void displayInterfaceInit() {
 
 	//invertRows(HEIGHT>>1, HEIGHT-1);
 
-	goToHomeScreen((void*)0);
+	drawPlotData(&testBuf, 8, COLOR_RED, 0, 0, WIDTH, HEIGHT);
+
+	//goToHomeScreen((void*)0);
 }

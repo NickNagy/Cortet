@@ -4,7 +4,7 @@
 #define NUM_CHANNELS					 2
 #define AUDIO_DATA_SIZE                 24
 #define AUDIO_SAMPLE_RATE               96
-#define AUDIO_BUFFER_SAMPLES_PER_CHANNEL 2
+#define AUDIO_BUFFER_SAMPLES_PER_CHANNEL 16
 
 #if AUDIO_DATA_SIZE == 24
 #define AUDIO_BUFFER_T int32_t

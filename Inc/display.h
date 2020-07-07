@@ -7,8 +7,19 @@
 #include "button.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h> // for rounding
 
 #define SCREEN_ORIENTATION 1 // range 1 -> 4
+
+#define PLOT_DATA_FIT_TO_MAX_BUF_VAL      0
+#define PLOT_DATA_FIT_TO_MAX_POSSIBLE_VAL 1
+#define PLOT_DATA_FIT_TYPE PLOT_DATA_FIT_TO_MAX_BUF_VAL
+
+#if AUDIO_DATA_SIZE == 16
+#define DATA_MAX_POSSIBLE_VAL 0xFFFF
+#elif AUDIO_DATA_SIZE == 24
+#define DATA_MAX_POSSIBLE_VAL 0xFFFFFF
+#endif
 
 #if SCREEN_ORIENTATION % 2
 #define WIDTH  ILI9341_WIDTH
@@ -84,6 +95,7 @@ typedef struct DisplayButtonStruct {
 
 typedef struct DisplayPlotStruct {
 	AUDIO_BUFFER_PTR_T Data;
+	AUDIO_BUFFER_PTR_T DataNext;
 	uint16_t Length;
 	uint16_t AxisColor;
 	uint16_t BackgroundColor;
@@ -91,7 +103,7 @@ typedef struct DisplayPlotStruct {
 	uint16_t TextColor;
 	char * PlotTitle;
 }DisplayPlotStruct;
-#define INIT_DISPLAY_PLOT_DEFAULT(x) x = (DisplayPlotStruct){.Data=0, .Length=0, .AxisColor=COLOR_LGRAY, .BackgroundColor=COLOR_BLACK, .DataColor=COLOR_RED, .TextColor=COLOR_WHITE, .PlotTitle=""};
+#define INIT_DISPLAY_PLOT_DEFAULT(x) x = (DisplayPlotStruct){.Data=0, .DataNext=0, .Length=0, .AxisColor=COLOR_LGRAY, .BackgroundColor=COLOR_BLACK, .DataColor=COLOR_RED, .TextColor=COLOR_WHITE, .PlotTitle=""};
 
 typedef struct DisplayWindowStruct {
 	DisplayPlotStruct * Plot;
@@ -173,7 +185,7 @@ void swapWindows(uint8_t idx1, uint8_t idx2);
 
 /* draw functions */
 void drawPlotData(AUDIO_BUFFER_PTR_T data, uint16_t dataLength, uint16_t color, uint16_t x0, uint16_t y0, uint16_t width, uint16_t height);
-void refreshPlot(DisplayWindowStruct * w, AUDIO_BUFFER_PTR_T newData);
+static void refreshPlotData(DisplayWindowStruct * w);
 void drawDisplayPlot(DisplayPlotStruct * plot, uint16_t x, uint16_t y, uint16_t width, uint16_t height);
 static void drawDisplayButtonBorder(uint16_t x0, uint16_t y0, uint16_t x1,
 		uint16_t y1, uint16_t color);
@@ -188,6 +200,7 @@ static void updateDisplayWindowMenuSelection(DisplayWindowStruct * displayMenu,
 void incrementCurrentDisplayWindowMenuSelection();
 void decrementCurrentDisplayWindowMenuSelection();
 void selectCurrentDisplayButton();
+void updateLCDAnimation();
 
 /* operation functions that can be pointed to by DisplayButtonStruct items */
 static void goToScreen(void * displayWindowVoidPtr);

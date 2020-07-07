@@ -36,8 +36,8 @@ ARM_CFFT_RADIX4_INSTANCE leftCFFTInstance, rightCFFTInstance;
 
 // for DMA
 AUDIO_BUFFER_T rxBuf[AUDIO_BUFFER_LENGTH];
+AUDIO_BUFFER_T hiddenBuf[AUDIO_BUFFER_LENGTH];
 AUDIO_BUFFER_T txBuf[AUDIO_BUFFER_LENGTH];
-//AUDIO_BUFFER_T rxBufCopy[AUDIO_BUFFER_16BIT_LENGTH];
 
 // for display buttons
 DisplayButtonStruct b1, b2;
@@ -50,8 +50,6 @@ static void MX_FMC_Init(void);
 static void MX_I2S2_Init(void);
 static void MX_I2S3_Init(void);
 static void animationTimer_Init(void);
-static void splitChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size);
-static void combineChannels(AUDIO_BUFFER_PTR_T buffer, AUDIO_BUFFER_PTR_T bufferCopy, uint16_t size);
 
 /**
   * @brief  The application entry point.
@@ -277,9 +275,9 @@ static void animationTimer_Init() {
 	 *
 	 * */
 	animationTimer.Instance = TIM2;
-	animationTimer.Init.Prescaler = 40000; //167; // @ 1MHz TODO:
+	animationTimer.Init.Prescaler = 167; // @ 1MHz TODO:
 	animationTimer.Init.CounterMode = TIM_COUNTERMODE_UP;
-	animationTimer.Init.Period = 500; //1000000 / ANIMATION_FREQUENCY;
+	animationTimer.Init.Period = 1000000 / ANIMATION_FREQUENCY;
 	HAL_TIM_Base_Init(&animationTimer);
 	HAL_TIM_Base_Start_IT(&animationTimer);
 
@@ -307,17 +305,19 @@ void EXTI0_IRQHandler() {
 }
 
 void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
-	ARM_COPY((Q*)&rxBuf, (Q*)&txBuf, AUDIO_BUFFER_LENGTH>>1);
+	ARM_COPY((Q*)&rxBuf, (Q*)&hiddenBuf, AUDIO_BUFFER_LENGTH>>1);
 }
 
 void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s) {
+	ARM_COPY((Q*)&hiddenBuf, (Q*)&txBuf, AUDIO_BUFFER_LENGTH>>1);
 }
 
 void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s) {
-	ARM_COPY((Q*)&rxBuf[AUDIO_BUFFER_LENGTH>>1], (Q*)&txBuf[AUDIO_BUFFER_LENGTH>>1], AUDIO_BUFFER_LENGTH>>1);
+	ARM_COPY((Q*)&rxBuf[AUDIO_BUFFER_LENGTH>>1], (Q*)&hiddenBuf[AUDIO_BUFFER_LENGTH>>1], AUDIO_BUFFER_LENGTH>>1);
 }
 
 void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s) {
+	ARM_COPY((Q*)&hiddenBuf[AUDIO_BUFFER_LENGTH>>1], (Q*)&txBuf[AUDIO_BUFFER_LENGTH>>1], AUDIO_BUFFER_LENGTH>>1);
 }
 
 /* TIM2 IRQ Handler */
@@ -326,9 +326,7 @@ extern void TIM2_IRQHandler() {
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim) {
-	/*splitChannels((AUDIO_BUFFER_PTR_T)&rxBuf, rxBufCopyPtr, AUDIO_BUFFER_LENGTH);
-	refreshPlot(&leftChannelWindow, rxBufCopyPtr);
-	refreshPlot(&leftChannelWindow, rxBufCopyPtr + (AUDIO_BUFFER_LENGTH>>1));*/
+	updateLCDAnimation();
 }
 
 /**

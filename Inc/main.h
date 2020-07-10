@@ -23,7 +23,7 @@
 #define __MAIN_H
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
@@ -49,7 +49,7 @@ void Error_Handler(void);
 #define TEST_LED_GPIO_Port GPIOA
 
 #ifdef __cplusplus
-}
+//}
 #endif
 
 #endif /* __MAIN_H */

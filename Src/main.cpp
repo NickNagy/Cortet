@@ -1,7 +1,6 @@
-/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file           : main.c
+  * @file           : main.cpp
   * @brief          : Main program body
   ******************************************************************************
   * @attention
@@ -16,7 +15,6 @@
   *
   ******************************************************************************
   */
-/* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -38,9 +36,6 @@ ARM_CFFT_RADIX4_INSTANCE leftCFFTInstance, rightCFFTInstance;
 AUDIO_BUFFER_T rxBuf[AUDIO_BUFFER_LENGTH];
 AUDIO_BUFFER_T hiddenBuf[AUDIO_BUFFER_LENGTH];
 AUDIO_BUFFER_T txBuf[AUDIO_BUFFER_LENGTH];
-
-// for display buttons
-DisplayButtonStruct b1, b2;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
@@ -291,7 +286,7 @@ void EXTI2_IRQHandler() {
   if(__HAL_GPIO_EXTI_GET_IT(EXTI_LINE_2) != RESET)
   {
     HAL_GPIO_TogglePin(TEST_LED_GPIO_Port, TEST_LED_Pin);
-    incrementCurrentDisplayWindowMenuSelection();
+    incrementCurrentDisplayMenuSelection();
     __HAL_GPIO_EXTI_CLEAR_IT(EXTI_LINE_2);
     //HAL_GPIO_EXTI_Callback(EXTI_LINE_2);
   }
@@ -326,7 +321,7 @@ extern void TIM2_IRQHandler() {
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim) {
-	updateLCDAnimation();
+	updateDisplayAnimation();
 }
 
 /**
@@ -335,10 +330,6 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef * htim) {
   */
 void Error_Handler(void)
 {
-  /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-
-  /* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT
@@ -351,10 +342,6 @@ void Error_Handler(void)
   */
 void assert_failed(uint8_t *file, uint32_t line)
 { 
-  /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-  /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
 

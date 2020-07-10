@@ -1,4 +1,4 @@
-#include "../Inc/button.h"
+#include "periph_button.h"
 
 ButtonConfigStruct * buttons[NUM_FX_BUTTONS];
 

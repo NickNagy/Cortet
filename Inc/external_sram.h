@@ -1,6 +1,10 @@
 #ifndef EXTERNAL_SRAM_H
 #define EXTERNAL_SRAM_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "fmc.h"
 
 #define EXTERNAL_SRAM_BANK          2
@@ -48,5 +52,9 @@
 #endif
 
 #define EXTERNAL_SRAM_PTR_T EXTERNAL_SRAM_DATA_T*
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -1,6 +1,10 @@
 #ifndef I2S_AUDIO_SETTINGS_H
 #define I2S_AUDIO_SETTINGS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "audio_config.h"
 #include "stm32f7xx_hal.h"
 
@@ -16,6 +20,10 @@
 #define I2S_SAMPLE_RATE I2S_AUDIOFREQ_44K
 #else
 #define I2S_SAMPLE_RATE I2S_AUDIOFREQ_96K
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif

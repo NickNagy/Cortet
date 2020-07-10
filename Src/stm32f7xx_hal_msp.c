@@ -21,62 +21,17 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-/* USER CODE BEGIN Includes */
 
-/* USER CODE END Includes */
 extern DMA_HandleTypeDef hdma_spi2_rx;
 extern DMA_HandleTypeDef hdma_spi3_tx;
 
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN TD */
-
-/* USER CODE END TD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN Define */
- 
-/* USER CODE END Define */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN Macro */
-
-/* USER CODE END Macro */
-
-/* Private variables ---------------------------------------------------------*/
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
-/* USER CODE BEGIN PFP */
-
-/* USER CODE END PFP */
-
-/* External functions --------------------------------------------------------*/
-/* USER CODE BEGIN ExternalFunctions */
-
-/* USER CODE END ExternalFunctions */
-
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
 /**
   * Initializes the Global MSP.
   */
 void HAL_MspInit(void)
 {
-  /* USER CODE BEGIN MspInit 0 */
-
-  /* USER CODE END MspInit 0 */
-
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_RCC_SYSCFG_CLK_ENABLE();
-
-  /* System interrupt init*/
-
-  /* USER CODE BEGIN MspInit 1 */
-
-  /* USER CODE END MspInit 1 */
 }
 
 /**
@@ -90,10 +45,6 @@ void HAL_I2S_MspInit(I2S_HandleTypeDef* hi2s)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   if(hi2s->Instance==SPI2)
   {
-  /* USER CODE BEGIN SPI2_MspInit 0 */
-
-  /* USER CODE END SPI2_MspInit 0 */
-    /* Peripheral clock enable */
     __HAL_RCC_SPI2_CLK_ENABLE();
   
     __HAL_RCC_GPIOB_CLK_ENABLE();
@@ -130,23 +81,18 @@ void HAL_I2S_MspInit(I2S_HandleTypeDef* hi2s)
     hdma_spi2_rx.Init.Mode = DMA_CIRCULAR;
     hdma_spi2_rx.Init.Priority = DMA_PRIORITY_HIGH;
     hdma_spi2_rx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+
+
     if (HAL_DMA_Init(&hdma_spi2_rx) != HAL_OK)
     {
-      Error_Handler();
+      //Error_Handler();
     }
 
     __HAL_LINKDMA(hi2s,hdmarx,hdma_spi2_rx);
 
-  /* USER CODE BEGIN SPI2_MspInit 1 */
-
-  /* USER CODE END SPI2_MspInit 1 */
   }
   else if(hi2s->Instance==SPI3)
   {
-  /* USER CODE BEGIN SPI3_MspInit 0 */
-
-  /* USER CODE END SPI3_MspInit 0 */
-    /* Peripheral clock enable */
     __HAL_RCC_SPI3_CLK_ENABLE();
   
     __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -192,14 +138,10 @@ void HAL_I2S_MspInit(I2S_HandleTypeDef* hi2s)
     hdma_spi3_tx.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
     if (HAL_DMA_Init(&hdma_spi3_tx) != HAL_OK)
     {
-      Error_Handler();
+      //Error_Handler();
     }
 
     __HAL_LINKDMA(hi2s,hdmatx,hdma_spi3_tx);
-
-  /* USER CODE BEGIN SPI3_MspInit 1 */
-
-  /* USER CODE END SPI3_MspInit 1 */
   }
 
 }
@@ -214,9 +156,6 @@ void HAL_I2S_MspDeInit(I2S_HandleTypeDef* hi2s)
 {
   if(hi2s->Instance==SPI2)
   {
-  /* USER CODE BEGIN SPI2_MspDeInit 0 */
-
-  /* USER CODE END SPI2_MspDeInit 0 */
     /* Peripheral clock disable */
     __HAL_RCC_SPI2_CLK_DISABLE();
   
@@ -232,15 +171,9 @@ void HAL_I2S_MspDeInit(I2S_HandleTypeDef* hi2s)
 
     /* I2S2 DMA DeInit */
     HAL_DMA_DeInit(hi2s->hdmarx);
-  /* USER CODE BEGIN SPI2_MspDeInit 1 */
-
-  /* USER CODE END SPI2_MspDeInit 1 */
   }
   else if(hi2s->Instance==SPI3)
   {
-  /* USER CODE BEGIN SPI3_MspDeInit 0 */
-
-  /* USER CODE END SPI3_MspDeInit 0 */
     /* Peripheral clock disable */
     __HAL_RCC_SPI3_CLK_DISABLE();
   
@@ -257,9 +190,6 @@ void HAL_I2S_MspDeInit(I2S_HandleTypeDef* hi2s)
 
     /* I2S3 DMA DeInit */
     HAL_DMA_DeInit(hi2s->hdmatx);
-  /* USER CODE BEGIN SPI3_MspDeInit 1 */
-
-  /* USER CODE END SPI3_MspDeInit 1 */
   }
 
 }
@@ -314,28 +244,15 @@ static void HAL_FMC_MspInit(void){
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;//VERY_HIGH;
   GPIO_InitStruct.Alternate = GPIO_AF9_FMC;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /* USER CODE BEGIN FMC_MspInit 1 */
-
-  /* USER CODE END FMC_MspInit 1 */
 }
 
 void HAL_SRAM_MspInit(SRAM_HandleTypeDef* hsram){
-  /* USER CODE BEGIN SRAM_MspInit 0 */
-
-  /* USER CODE END SRAM_MspInit 0 */
   HAL_FMC_MspInit();
-  /* USER CODE BEGIN SRAM_MspInit 1 */
-
-  /* USER CODE END SRAM_MspInit 1 */
 }
 
 static uint32_t FMC_DeInitialized = 0;
 
 static void HAL_FMC_MspDeInit(void){
-  /* USER CODE BEGIN FMC_MspDeInit 0 */
-
-  /* USER CODE END FMC_MspDeInit 0 */
   if (FMC_DeInitialized) {
     return;
   }
@@ -363,24 +280,10 @@ static void HAL_FMC_MspDeInit(void){
                           |GPIO_PIN_1|GPIO_PIN_4|GPIO_PIN_5);
 
   HAL_GPIO_DeInit(GPIOC, GPIO_PIN_7);
-
-  /* USER CODE BEGIN FMC_MspDeInit 1 */
-
-  /* USER CODE END FMC_MspDeInit 1 */
 }
 
 void HAL_SRAM_MspDeInit(SRAM_HandleTypeDef* hsram){
-  /* USER CODE BEGIN SRAM_MspDeInit 0 */
-
-  /* USER CODE END SRAM_MspDeInit 0 */
   HAL_FMC_MspDeInit();
-  /* USER CODE BEGIN SRAM_MspDeInit 1 */
-
-  /* USER CODE END SRAM_MspDeInit 1 */
 }
-
-/* USER CODE BEGIN 1 */
-
-/* USER CODE END 1 */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

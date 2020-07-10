@@ -1,6 +1,10 @@
 #ifndef FMC_H
 #define FMC_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "stm32f7xx_hal.h"//_sram.h"
 
 #define MEM_SWAPPING 1
@@ -56,5 +60,9 @@ typedef struct ExternalSRAMSpecStruct {
 void FMCComputeAddsetDatast(ExternalSRAMSpecStruct * sramSpec, FMC_NORSRAM_TimingTypeDef * timing);
 void FMCSRAMInit(ExternalSRAMSpecStruct * sramSpec, uint8_t bank);
 void FMC_Error_Handler();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
